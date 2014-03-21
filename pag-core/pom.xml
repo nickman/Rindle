@@ -42,6 +42,26 @@
 				<classifier>indy</classifier>
       </dependency>
 
+      <!-- ==========================================================
+		Google p-buffs
+	  ========================================================== -->
+
+	   <dependency>
+	     <groupId>com.google.protobuf</groupId>
+	     <artifactId>protobuf-java</artifactId>
+	   </dependency>
+	   
+      <!-- ==========================================================
+		Apache Thrift
+	  ========================================================== -->
+
+
+      	<dependency>
+            <groupId>org.apache.thrift</groupId>
+            <artifactId>libthrift</artifactId>
+        </dependency>
+
+	   
 
 	      <!-- ==========================================================
 		JMX Support
