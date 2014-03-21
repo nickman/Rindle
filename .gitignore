@@ -1,6 +1,12 @@
-*.class
+/hs_err_pid*.log
+/dependency-reduced-pom.xml
+*.bak
+*.*~
+file:
+log.*
+snapshot.*
+/bin
+/*.ocs
+/jxinsight.aspectj.cache
+/nohup.out
 
-# Package Files #
-*.jar
-*.war
-*.ear
