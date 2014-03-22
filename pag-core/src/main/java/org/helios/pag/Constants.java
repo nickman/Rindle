@@ -26,6 +26,8 @@ package org.helios.pag;
 
 import java.lang.management.ManagementFactory;
 
+import org.helios.pag.util.unsafe.UnsafeAdapter;
+
 import com.lmax.disruptor.SleepingWaitStrategy;
 import com.stumbleupon.async.Deferred;
 
@@ -73,6 +75,24 @@ public class Constants {
 	public static final String PERIOD_MAX = "helios.pag.period.max";
 	/** The default maximum period */
 	public static final int DEFAULT_PERIOD_MAX = 300;
+
+	// ===========================================================================================	
+	//		Raw Container Config
+	// ===========================================================================================
+	/** The config property name for the maximum number of slots that can be allocated before we start rolling out old values */
+	public static final String MAX_SLOTS_ALLOC = "helios.pag.raw.max";
+	/** The default maximum number of slots that can be allocated before we start rolling out old values */
+	public static final int DEFAULT_MAX_SLOTS_ALLOC = UnsafeAdapter.findNextPositivePowerOfTwo(1048576-8)-8;
+	/** The config property name for the initial number of slots to be allocated in a new container */
+	public static final String INIT_SLOTS_ALLOC = "helios.pag.raw.init";
+	/** The default initial number of slots to be allocated in a new container */
+	public static final int DEFAULT_INIT_SLOTS_ALLOC = UnsafeAdapter.findNextPositivePowerOfTwo(128-8)-8;
+	/** The config property name for the number of slots to be added when a container resizes */
+	public static final String RESIZE_SLOTS_ALLOC = "helios.pag.raw.resize";
+	/** The default initial number of slots to be added when a container resizes */
+	public static final int DEFAULT_RESIZE_SLOTS_ALLOC = 128;
+	
+	
 	
 	
 	

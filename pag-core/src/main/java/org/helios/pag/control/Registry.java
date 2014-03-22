@@ -30,13 +30,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.pag.Constants;
+import org.helios.pag.core.datapoints.Core.DataPoint;
+import org.helios.pag.core.datapoints.Core.DataPoints;
 import org.helios.pag.period.IPeriodAggregator;
+import org.helios.pag.period.impl.PeriodAggregatorImpl;
 import org.helios.pag.util.ConfigurationHelper;
 import org.helios.pag.util.JMXHelper;
 import org.helios.pag.util.StringHelper;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 
-import ch.qos.logback.classic.BasicConfigurator;
+
 
 /**
  * <p>Title: Registry</p>
@@ -59,7 +62,8 @@ public class Registry implements RegistryMXBean {
 	protected Logger log = LogManager.getLogger(getClass());
 	
 	/** The map of aggregators keyed by the global metric ID */
-	protected final NonBlockingHashMapLong<IPeriodAggregator> aggregators;
+	protected final NonBlockingHashMapLong<PeriodAggregatorImpl> aggregators;
+	
 	
 	/** The registry's JMX ObjectName */
 	public static final ObjectName OBJECT_NAME = JMXHelper.objectName(new StringBuilder(Registry.class.getPackage().getName()).append(":service=").append(Registry.class.getSimpleName()));
@@ -81,7 +85,6 @@ public class Registry implements RegistryMXBean {
 	}
 	
 	public static void main(String[] args) {
-		BasicConfigurator.configureDefaultContext();
 		Registry reg = Registry.getInstance();
 		
 		try { Thread.sleep(100000); } catch (Exception x) {}
@@ -94,8 +97,19 @@ public class Registry implements RegistryMXBean {
 		int size = UnsafeAdapter.findNextPositivePowerOfTwo(ConfigurationHelper.getIntSystemThenEnvProperty(Constants.REG_INIT_SIZE, Constants.DEFAULT_REG_INIT_SIZE));
 		boolean space4speed = ConfigurationHelper.getBooleanSystemThenEnvProperty(Constants.REG_SPACE_FOR_SPEED, Constants.DEFAULT_REG_SPACE_FOR_SPEED);
 		log.info("Registry Map Options:\n\tsize: {}\n\tspaceForspeed: {}", size, space4speed);
-		aggregators = new NonBlockingHashMapLong<IPeriodAggregator>(size, space4speed);		
+		aggregators = new NonBlockingHashMapLong<PeriodAggregatorImpl>(size, space4speed);		
 		log.info(StringHelper.banner("Registry Started"));
+	}
+	
+	public void processDataPoints(DataPoints dataPoints) {
+		if(dataPoints==null || dataPoints.getDataPointsCount()<1) return;
+		for(DataPoint dp: dataPoints.getDataPointsList()) {
+			processDataPoint(dp);
+		}
+	}
+	
+	public void processDataPoint(DataPoint dataPoint) {
+		//PeriodAggregatorImpl pai = aggregators.get(dataPoint.)
 	}
 	
 	/**

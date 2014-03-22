@@ -5,7 +5,7 @@ package org.helios.pag.core.datapoints;
 	message DataPoint {
 		enum ValueType { LONG = 1; DOUBLE = 2; }
 		/** The global id of the metric */
-		required int64 golbalID = 1;
+		required int64 globalID = 1;
 		/** The timestamp of the metric */
 		required int64 timestamp = 2;
 		required ValueType valueType = 3;

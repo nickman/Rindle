@@ -24,6 +24,9 @@
  */
 package org.helios.pag.period;
 
+import org.helios.pag.core.datapoints.Core.DataPoint;
+import org.helios.pag.period.impl.PeriodAggregatorImpl;
+
 /**
  * <p>Title: IPeriodAggregator</p>
  * <p>Description: Defines an aggregation node which is fed raw data points for a specific id.</p> 
@@ -53,18 +56,6 @@ public interface IPeriodAggregator {
 	 */
 	public long getCount();
 	
-	/**
-	 * Increments the count by 1 and the last time to current
-	 * @return the new count
-	 */
-	public long increment();
-	
-	/**
-	 * Increments the count and the last time to current
-	 * @param value The amount to increment the count by
-	 * @return the new count
-	 */
-	public long increment(long value);
 	
 	/**
 	 * Returns true if this is a long based metric
@@ -77,4 +68,59 @@ public interface IPeriodAggregator {
 	 * @return true for double based metric, false otherwise
 	 */
 	public boolean isDouble();
+	
+	/**
+	 * Returns the mean value
+	 * @return the mean value
+	 */
+	public double getDoubleMean();
+
+	/**
+	 * Returns the minimum value
+	 * @return the minimum value
+	 */
+	public double getDoubleMin();
+
+	/**
+	 * Returns the maximum value
+	 * @return the maximum value
+	 */
+	public double getDoubleMax();
+	
+	/**
+	 * Returns the mean value
+	 * @return the mean value
+	 */
+	public long getLongMean();
+
+	/**
+	 * Returns the minimum value
+	 * @return the minimum value
+	 */
+	public long getLongMin();
+
+	/**
+	 * Returns the maximum value
+	 * @return the maximum value
+	 */
+	public long getLongMax();
+	
+	/**
+	 * Returns the mean value
+	 * @return the mean value
+	 */
+	public Number getMean();
+
+	/**
+	 * Returns the minimum value
+	 * @return the minimum value
+	 */
+	public Number getMin();
+
+	/**
+	 * Returns the maximum value
+	 * @return the maximum value
+	 */
+	public Number getMax();
+	
 }

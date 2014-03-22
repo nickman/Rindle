@@ -6,18 +6,28 @@ package org.helios.pag.util.unsafe;
 
 import gnu.trove.map.hash.TLongLongHashMap;
 
+import java.lang.ref.PhantomReference;
+import java.lang.ref.ReferenceQueue;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.security.ProtectionDomain;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.pag.Constants;
 import org.helios.pag.util.ConfigurationHelper;
 import org.helios.pag.util.JMXHelper;
+import org.helios.pag.util.StringHelper;
 
 import sun.misc.Unsafe;
 
@@ -55,17 +65,14 @@ public class UnsafeAdapter {
     public final static int LONG_SIZE = 8;    
     /** The size of a <b><code>long[]</code></b> array offset */
     public final static int LONG_ARRAY_OFFSET;
+    /** The size of a <b><code>double[]</code></b> array offset */
+    public final static int DOUBLE_ARRAY_OFFSET;
+    
     /** The size of a <b><code>byte[]</code></b> array offset */
     public final static int BYTE_ARRAY_OFFSET;
     
-    /** A map of SAFE memory segments */
-    private static ByteBuffer allocatedMemory;
     
-    /** Indicates if unsafe should be used */
-    public static final boolean UNSAFE_MODE;
     
-    /** System property indicating that Unsafe should be used */
-    public static final String UNSAFE_MODE_PROP = "shorthand.unsafe";
     
 	
 	/** The configured native memory tracking enablement  */
@@ -96,22 +103,6 @@ public class UnsafeAdapter {
     	
     }
     
-    private static synchronized ByteBuffer getMemory() {
-    	return allocatedMemory;
-    }
-    
-    private static synchronized ByteBuffer setMemory(long newSize) {
-    	if(allocatedMemory==null) {
-    		allocatedMemory = ByteBuffer.allocateDirect((int)newSize);
-    	} else {
-    		ByteBuffer tmp = ByteBuffer.allocateDirect((int)(allocatedMemory.capacity() + newSize));
-    		allocatedMemory.position(0);
-    		tmp.put(allocatedMemory);
-    		allocatedMemory = tmp;    		
-    	}
-    	allocatedMemory.flip();
-    	return allocatedMemory;
-    }
     
     public static interface UnsafeMemoryMBean {
     	/**
@@ -157,6 +148,18 @@ public class UnsafeAdapter {
     	 * @return the distinct native memory allocating callers with no de-allocating calls.
     	 */
     	public Set<String> getNonDeallocatingAllocators();
+    	
+    	/**
+    	 * Returns the size of the memory allocation cleaner reference queue
+    	 * @return the size of the memory allocation cleaner reference queue
+    	 */
+    	public long getRefQueueSize();
+    	
+    	/**
+    	 * Returns the number of retained phantom references to memory allocations
+    	 * @return the number of retained phantom references to memory allocations
+    	 */
+    	public int getPendingRefs();
     }
     
     public static class UnsafeMemory implements UnsafeMemoryMBean  {
@@ -232,13 +235,117 @@ public class UnsafeAdapter {
 			Set<String> allocs = new HashSet<String>(allocators);
 			allocs.removeAll(deallocators);
 			return allocs;			
-		}
-    	
+		}    	
+		
+    	/**
+    	 * {@inheritDoc}
+    	 * @see org.helios.pag.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getRefQueueSize()
+    	 */
+		@Override
+    	public long getRefQueueSize() {
+    		return refQueueSize.get();
+    	}
+		
+    	/**
+    	 * Returns the number of retained phantom references to memory allocations
+    	 * @return the number of retained phantom references to memory allocations
+    	 */
+    	public int getPendingRefs() {
+    		return deAllocs.size();
+    	}
+		
+		
     }
+    
+    //=========================================================================================================
+    //			Memory Allocation Management
+    //=========================================================================================================
+    
+    private static final long[] EMPTY_LONG_ARR = {};
+    private static final List<MemoryAllocationReference> EMPTY_ALLOC_LIST = Collections.emptyList();
+    protected static final AtomicLong refQueueSize = new AtomicLong(0L);
+    protected static final NonBlockingHashMapLong<MemoryAllocationReference> deAllocs = new NonBlockingHashMapLong<MemoryAllocationReference>(1024, false);
+    
+    private static final ReferenceQueue<DeAllocateMe> deallocations = new ReferenceQueue<DeAllocateMe>(); 
+    
+    public static class MemoryAllocationReference extends PhantomReference<DeAllocateMe> {
+    	/** The memory addresses owned by this reference */
+    	private final long[] addresses;
+    	
+		/**
+		 * Creates a new MemoryAllocationReference
+		 * @param referent the memory address holder
+		 */
+		public MemoryAllocationReference(DeAllocateMe referent) {
+			super(referent, deallocations);
+			refQueueSize.incrementAndGet();
+			addresses = referent==null ? EMPTY_LONG_ARR : referent.getAddresses();
+			for(long address: addresses) {
+				deAllocs.put(address, this);
+			}
+		}    	
+		
+		@Override
+		public void clear() {
+			for(long address: addresses) {
+				freeMemory(address);
+				deAllocs.remove(address);
+				LOG.trace("Freed Address:{}", address);
+			}
+			super.clear();
+		}
+		
+    }
+    
+    /** Static class logger */
+    private static final Logger LOG = LogManager.getLogger(UnsafeAdapter.class);
+    
+    private static final Runnable deallocator = new Runnable() {
+    	public void run() {
+    		latch.countDown();
+    		LOG.info(StringHelper.banner("Started Unsafe Memory Manager Thread"));
+    		while(true) {
+    			try {
+    				MemoryAllocationReference phantom = (MemoryAllocationReference) deallocations.remove();
+    				refQueueSize.decrementAndGet();
+    				phantom.clear();
+    			} catch (Throwable t) {
+    				if(Thread.interrupted()) Thread.interrupted();
+    			}
+    		}
+    	}
+    };
+    
+    private static final CountDownLatch latch = new CountDownLatch(1);
+    
+    public static List<MemoryAllocationReference> registerForDeAlloc(DeAllocateMe...deallocators) {
+    	try {
+    		latch.await();
+    	} catch (Exception ex) {
+    		throw new RuntimeException(ex);
+    	}
+    	if(deallocators==null || deallocators.length==0) return EMPTY_ALLOC_LIST;
+    	List<MemoryAllocationReference> refs = new ArrayList<MemoryAllocationReference>();
+    	for(DeAllocateMe dame: deallocators) {
+    		if(dame==null) continue;
+    		long[] addresses = dame.getAddresses();
+    		if(addresses==null || addresses.length==0) continue;
+    		refs.add(new MemoryAllocationReference(dame));
+    	}
+    	if(refs.isEmpty()) return EMPTY_ALLOC_LIST;
+    	LOG.trace("Created {} MemoryAllocationReferences", refs.size());
+    	return Collections.unmodifiableList(refs);
+    }
+    
+    
+    
     
 
     static {
-    	UNSAFE_MODE = System.getProperty("shorthand.unsafe", "true").trim().toLowerCase().equals("true");    	   
+    	Thread t = new Thread(deallocator, "UnsafeAdapterDeallocatorThread");
+    	t.setDaemon(true);
+    	t.start();
+
         try {        	
             Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
             theUnsafe.setAccessible(true);
@@ -248,6 +355,7 @@ public class UnsafeAdapter {
             OBJECTS_OFFSET = UNSAFE.arrayBaseOffset(Object[].class);
             INT_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(int[].class);
             LONG_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(long[].class);
+            DOUBLE_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(double[].class);
             BYTE_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
             int copyMemCount = 0;
             int setMemCount = 0;
@@ -266,7 +374,7 @@ public class UnsafeAdapter {
 //            log("\n\t=======================================================\n");
             FIVE_COPY = copyMemCount>1;
             FOUR_SET = setMemCount>1;
-        	trackMem = ConfigurationHelper.getBooleanSystemThenEnvProperty(Constants.TRACK_MEM_PROP, Constants.DEFAULT_TRACK_MEM);   
+        	trackMem = System.getProperties().containsKey(Constants.TRACK_MEM_PROP);   
         	if(trackMem) {
         		memoryAllocations = new TLongLongHashMap(1024, 0.75f, 0L, 0L);
         		totalMemoryAllocated = new AtomicLong(0L);
@@ -278,15 +386,12 @@ public class UnsafeAdapter {
         		memoryAllocations = null;
         		deallocators = null;
         		allocators = null;
-
         	}
-        	
         } catch (Exception e) {
             throw new AssertionError(e);
         }
     }
     
-
     
     /**
      * Sets all bytes in a given block of memory to a fixed value
@@ -296,9 +401,6 @@ public class UnsafeAdapter {
      * @param value The value to set the bytes to
      */
     public static void setMemory(Object obj, long offset, long bytes, byte value) {
-    	if(!UNSAFE_MODE) { //throw new UnsupportedOperationException("setMemory(Object, long, long, byte)  is not supported in SAFE mode");
-    		throw new UnsupportedOperationException("setMemory(Object, long, long, byte) where obj is not null is not supported in SAFE mode");
-    	}
     	if(FOUR_SET) {
     		UNSAFE.setMemory(obj, offset, bytes, value);
     	} else {
@@ -312,7 +414,6 @@ public class UnsafeAdapter {
      * @return the address of the passed object or zero if the passed object is null
      */
     public static long getAddressOf(Object obj) {
-    	if(!UNSAFE_MODE) throw new UnsupportedOperationException("getAddressOf(Object) is not supported in SAFE mode");
     	if(obj==null) return 0;
     	Object[] array = new Object[] {obj};
     	return ADDRESS_SIZE==4 ? UNSAFE.getInt(array, OBJECTS_OFFSET) : UNSAFE.getLong(array, OBJECTS_OFFSET);
@@ -334,13 +435,6 @@ public class UnsafeAdapter {
 	 * @see sun.misc.Unsafe#allocateInstance(java.lang.Class)
 	 */
 	public static Object allocateInstance(Class<?> clazz) throws InstantiationException {
-		if(!UNSAFE_MODE) {
-			try {
-				return clazz.newInstance();
-			} catch (IllegalAccessException e) {
-				throw new InstantiationException("Failed to instantiate ["+ clazz.getName() + "]");
-			}
-		}
 		return UNSAFE.allocateInstance(clazz);
 	}
 
@@ -436,15 +530,6 @@ public class UnsafeAdapter {
 	 * @see sun.misc.Unsafe#compareAndSwapInt(java.lang.Object, long, int, int)
 	 */
 	public static final boolean compareAndSwapInt(Object object, long offset, int expect, int value) {
-		if(!UNSAFE_MODE) {
-			throw new UnsupportedOperationException("compareAndSwapInt(Object, long, int, int) with a non-null object is not supported in SAFE mode");
-//			ByteBuffer bb = memorySegments.get(offset);
-//			if(bb==null) throw new RuntimeException("No memory allocated at address [" + offset + "]");
-//			synchronized(bb) {
-//				
-//			}
-		}
-		
 		return UNSAFE.compareAndSwapInt(object, offset, expect, value);
 	}
 
@@ -707,12 +792,13 @@ public class UnsafeAdapter {
 	}
 
 	/**
-	 * @param arg0
-	 * @return
+	 * Retrieves the value at the given address
+	 * @param address The address to read the value from
+	 * @return the read value
 	 * @see sun.misc.Unsafe#getDouble(long)
 	 */
-	public static double getDouble(long arg0) {
-		return UNSAFE.getDouble(arg0);
+	public static double getDouble(long address) {
+		return UNSAFE.getDouble(address);
 	}
 
 	/**
@@ -857,6 +943,19 @@ public class UnsafeAdapter {
 		copyMemory(null, address, arr, LONG_ARRAY_OFFSET, size << 3);
 		return arr;
 	}
+	
+	/**
+	 * Reads a series of longs starting at the passed address and returns them as an array
+	 * @param address The address to read from
+	 * @param size The number of longs to read
+	 * @return the read longs as an array
+	 */
+	public static double[] getDoubleArray(long address, int size) {
+		double[] arr = new double[size];
+		copyMemory(null, address, arr, DOUBLE_ARRAY_OFFSET, size << 3);
+		return arr;
+	}
+	
 	
 	/**
 	 * Writes a long array to the specified address
@@ -1158,12 +1257,13 @@ public class UnsafeAdapter {
 	}
 
 	/**
-	 * @param arg0
-	 * @param arg1
+	 * Sets the value at the passed address
+	 * @param address The address to set the value at
+	 * @param value The value to set
 	 * @see sun.misc.Unsafe#putDouble(long, double)
 	 */
-	public static void putDouble(long arg0, double arg1) {
-		UNSAFE.putDouble(arg0, arg1);
+	public static void putDouble(long address, double value) {
+		UNSAFE.putDouble(address, value);
 	}
 
 	/**
@@ -1279,9 +1379,9 @@ public class UnsafeAdapter {
 	}
 
 	/**
-	 * Sets the long value at the specified address
-	 * @param address The address of the target put
-	 * @param value The value to put
+	 * Sets the value at the passed address
+	 * @param address The address to set the value at
+	 * @param value The value to set
 	 * @see sun.misc.Unsafe#putLong(long, long)
 	 */
 	public static void putLong(long address, long value) {
@@ -1434,13 +1534,14 @@ public class UnsafeAdapter {
 
 
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @param arg2
+	 * Sets all bytes in a given block of memory to a fixed value (usually zero). This provides a single-register addressing mode, as discussed in {@link #getInt(Object,long)} 
+	 * @param address The starting address of the segment to write to
+	 * @param bytes The number of bytes in the segment 
+	 * @param value The value to write to each byte in the segment 
 	 * @see sun.misc.Unsafe#setMemory(long, long, byte)
 	 */
-	public static void setMemory(long arg0, long arg1, byte arg2) {
-		UNSAFE.setMemory(arg0, arg1, arg2);
+	public static void setMemory(long address, long bytes, byte value) {
+		UNSAFE.setMemory(address, bytes, value);
 	}
 
 	/**
