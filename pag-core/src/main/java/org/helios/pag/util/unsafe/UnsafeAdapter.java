@@ -519,6 +519,15 @@ public class UnsafeAdapter {
     		UNSAFE.copyMemory(srcOffset + getAddressOf(srcBase), destOffset + getAddressOf(destBase), bytes);
     	}
     }	
+    
+    /**
+     * Finds the next <b><code>power of 2</code></b> higher or equal to than the passed value. 
+     * @param value The initial value
+     * @return the pow2
+     */
+    public static int findNextPositivePowerOfTwo(final int value) {
+		return 1 << (32 - Integer.numberOfLeadingZeros(value - 1));
+	}    
 
 	/**
 	 * @param arg0

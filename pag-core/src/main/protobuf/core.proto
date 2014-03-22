@@ -12,3 +12,8 @@ package org.helios.pag.core.datapoints;
 		optional uint64 longValue = 4;
 		optional double doubleValue = 5;
 	}
+
+	message DataPoints {
+		/*  */
+		repeated DataPoint dataPoints = 1;
+	}

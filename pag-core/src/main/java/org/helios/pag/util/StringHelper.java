@@ -26,6 +26,25 @@ public class StringHelper {
 	/** The ThreadMXBean */
 	protected static final ThreadMXBean tmx = ManagementFactory.getThreadMXBean();
 	
+	/** The logging banner line */
+	public static final String BANNER = "==========================================================";
+	
+	/**
+	 * Generates a logging string as an indented banner
+	 * @param format The format of the banner wrapped message
+	 * @param args The token substitutions for the banner wrapped message
+	 * @return the banner string
+	 */
+	public static String banner(CharSequence format, Object...args) {
+		return new StringBuilder("\n\t")
+			.append(BANNER)
+			.append("\n\t")
+			.append(String.format(format.toString(), args))
+			.append("\n\t")
+			.append(BANNER)
+			.append("\n")
+			.toString();
+	}
 	
 	/**
 	 * Returns the descriptor for the passed member

@@ -48,6 +48,32 @@ public class Constants {
 	
 	/** A null deferred response const */
 	public static final Deferred<Object> NULL_DEFERED = Deferred.fromResult(null);
+
+	// ===========================================================================================	
+	//		Registry Config
+	// ===========================================================================================
+	/** The config property name for the registry period map initial size. If the provided value
+	 is not a power of 2, the next highest power of 2 will be used */
+	public static final String REG_INIT_SIZE = "helios.pag.reg.initialsize";
+	/** The default value for the registry period map initial size */
+	public static final int DEFAULT_REG_INIT_SIZE = 128;
+	/** The config property name for the space-for-speed setting on the registry map, where true will use more space for more speed */
+	public static final String REG_SPACE_FOR_SPEED = "helios.pag.reg.space4speed";
+	/** The default value for the registry period map space-for-speed setting on the registry map */
+	public static final boolean DEFAULT_REG_SPACE_FOR_SPEED = true;
+	
+	// ===========================================================================================	
+	//		Period Config
+	// ===========================================================================================
+	/** The config property name for the minimum granularity for requested periods */
+	public static final String PERIOD_MIN_GRANULARITY = "helios.pag.period.granularity";
+	/** The default minimum granularity for requested periods */
+	public static final int DEFAULT_PERIOD_MIN_GRANULARITY = 5;
+	/** The config property name for the maximum period */
+	public static final String PERIOD_MAX = "helios.pag.period.max";
+	/** The default maximum period */
+	public static final int DEFAULT_PERIOD_MAX = 300;
+	
 	
 	
 	// ===========================================================================================	
