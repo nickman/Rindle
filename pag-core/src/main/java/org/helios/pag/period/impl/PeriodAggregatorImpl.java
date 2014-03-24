@@ -11,6 +11,7 @@ import java.util.Random;
 import org.helios.pag.core.datapoints.Core.DataPoint;
 import org.helios.pag.period.IPeriodAggregator;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
+import org.helios.pag.util.unsafe.collections.LongSlidingWindow;
 
 /**
  * <p>Title: PeriodAggregatorImpl</p>
@@ -33,13 +34,14 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 	public static void log(Object msg) {
 		System.out.println(msg);
 	}
-	
+
 	/**
 	 * Processes a new data point into this aggregator
 	 * @param dataPoint The data point to process
 	 * @return this aggregator
 	 */
 	public IPeriodAggregator processDataPoint(final DataPoint dataPoint) {
+		final long startTime = System.nanoTime();
 		UnsafeAdapter.runInLock(address, new Runnable(){
 			public void run() {
 				final long newCount = increment();
@@ -50,7 +52,7 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 					if(newCount==1) {
 						UnsafeAdapter.putDouble(address + MEAN, val);
 					} else {
-						UnsafeAdapter.putDouble(address + MEAN, avgd((val + UnsafeAdapter.getDouble(address + MEAN)), 2));
+						UnsafeAdapter.putDouble(address + MEAN, avgd(UnsafeAdapter.getDouble(address + MEAN), newCount-1, val));
 					}
 					if(isRawEnabled()) rawData.append(val);
 				} else {
@@ -58,38 +60,30 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 					if(val < UnsafeAdapter.getLong(address + MIN)) UnsafeAdapter.putLong(address + MIN, val);
 					if(val > UnsafeAdapter.getLong(address + MAX)) UnsafeAdapter.putLong(address + MAX, val);
 					if(newCount==1) {
-						UnsafeAdapter.putLong(address + MEAN, val);
+						UnsafeAdapter.putDouble(address + MEAN, val);
 					} else {
-						UnsafeAdapter.putLong(address + MEAN, avgl((val + UnsafeAdapter.getLong(address + MEAN)), 2));
+						UnsafeAdapter.putDouble(address + MEAN, avgd(UnsafeAdapter.getDouble(address + MEAN), newCount-1, val));
 					}
-					if(isRawEnabled()) rawData.append(val);
+					if(isRawEnabled()) {
+						rawData.append(val);
+					}
 				}
 			}
 		}); 
 		return this;
 	}
 	
-	/**
-	 * Calcs a long average
-	 * @param amt The total
-	 * @param cnt The count
-	 * @return the average
-	 */
-	public static long avgl(double amt, double cnt) {
-		if(amt==0 || cnt==0) return 0L;
-		double d = amt/cnt;
-		return (long)d;
-	}
 	
 	/**
-	 * Calcs a double average
-	 * @param amt The total
-	 * @param cnt The count
+	 * Calcs a double average incorporating a new value
+	 * using <b><code>(prev_avg*cnt + newval)/(cnt+1)</code></b>
+	 * @param prev_avg The pre-average
+	 * @param cnt The pre-count
+	 * @param newval The new value
 	 * @return the average
 	 */
-	public static double avgd(double amt, double cnt) {
-		if(amt==0 || cnt==0) return 0L;
-		return amt/cnt;
+	public static double avgd(double prev_avg, double cnt, double newval) {		
+		return (prev_avg*cnt + newval)/(cnt+1);
 	}
 	
 	
@@ -127,9 +121,10 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 	}
 	
 	/**
-	 * Indicates if raw data aggregation is enabled
-	 * @return true if raw data aggregation is enabled, false otherwise
+	 * {@inheritDoc}
+	 * @see org.helios.pag.period.IPeriodAggregator#isRawEnabled()
 	 */
+	@Override
 	public boolean isRawEnabled() {
 		return UnsafeAdapter.getByte(address + RAW_ENABLED)!=ZERO_BYTE;  // ZERO_BYTE = false, ONE_BYTE = true
 	}
@@ -163,6 +158,33 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 		return newval;
 	}
 
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.period.impl.ReadOnlyPeriodAggregator#getLongMedian()
+	 */
+	public long getLongMedian() {
+		if(!isRawEnabled()) throw new IllegalStateException("The aggregator does not have raw data enabled", new Throwable());
+		return rawData.getLongMedian();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.period.impl.ReadOnlyPeriodAggregator#getDoubleMedian()
+	 */
+	public double getDoubleMedian() {
+		if(!isRawEnabled()) throw new IllegalStateException("The aggregator does not have raw data enabled", new Throwable());
+		return rawData.getDoubleMedian();
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.period.impl.ReadOnlyPeriodAggregator#getMedian()
+	 */
+	public Number getMedian() {
+		if(!isRawEnabled()) throw new IllegalStateException("The aggregator does not have raw data enabled", new Throwable());
+		return isDouble() ? getDoubleMedian() : getLongMedian();
+	}
 	
 
 	
@@ -219,9 +241,17 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 			if(isRawEnabled() && rawData!=null) {
 				builder.append("\n\traw=");
 				if(isd) {
-					builder.append(Arrays.toString(rawData.getDoubles()));
+					if(rawData.size()>128) {
+						builder.append(rawData.size()).append(" doubles");
+					} else {
+						builder.append(Arrays.toString(rawData.getDoubles()));
+					}
 				} else {
-					builder.append(Arrays.toString(rawData.getLongs()));
+					if(rawData.size()>128) {
+						builder.append(rawData.size()).append(" longs");
+					} else {
+						builder.append(Arrays.toString(rawData.getLongs()));
+					}
 				}
 				builder.append("\n");
 			}

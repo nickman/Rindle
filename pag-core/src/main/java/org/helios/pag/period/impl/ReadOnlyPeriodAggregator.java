@@ -134,7 +134,7 @@ public class ReadOnlyPeriodAggregator  implements IPeriodAggregator, DeAllocateM
 
 	@Override
 	public long getLongMean() {
-		return UnsafeAdapter.getLong(address + MEAN);
+		return (long)UnsafeAdapter.getDouble(address + MEAN);
 	}
 
 	@Override
@@ -165,5 +165,38 @@ public class ReadOnlyPeriodAggregator  implements IPeriodAggregator, DeAllocateM
 		return getLongMax();
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.period.IPeriodAggregator#getLongMedian()
+	 */
+	public long getLongMedian() {
+		throw new UnsupportedOperationException();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.period.IPeriodAggregator#getDoubleMedian()
+	 */
+	public double getDoubleMedian() {
+		throw new UnsupportedOperationException();
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.period.IPeriodAggregator#getMedian()
+	 */
+	public Number getMedian() {
+		throw new UnsupportedOperationException();
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.period.IPeriodAggregator#isRawEnabled()
+	 */
+	@Override
+	public boolean isRawEnabled() {
+		throw new UnsupportedOperationException();
+	}
+
 	
 }

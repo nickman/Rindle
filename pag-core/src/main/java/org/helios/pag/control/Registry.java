@@ -24,6 +24,8 @@
  */
 package org.helios.pag.control;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import javax.management.ObjectName;
@@ -39,6 +41,8 @@ import org.helios.pag.period.impl.PeriodAggregatorImpl;
 import org.helios.pag.util.ConfigurationHelper;
 import org.helios.pag.util.JMXHelper;
 import org.helios.pag.util.StringHelper;
+import org.helios.pag.util.SystemClock;
+import org.helios.pag.util.SystemClock.ElapsedTime;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 import org.helios.pag.util.unsafe.collections.LongSlidingWindow;
 
@@ -80,7 +84,7 @@ public class Registry implements RegistryMXBean {
 			synchronized(lock) {
 				if(instance==null) {
 					instance = new Registry();
-					JMXHelper.registerMBean(instance, OBJECT_NAME);
+					JMXHelper.registerMBean(instance, OBJECT_NAME);	
 				}
 			}
 		}
@@ -91,15 +95,15 @@ public class Registry implements RegistryMXBean {
 		Registry reg = Registry.getInstance();
 		Random R = new Random(System.currentTimeMillis());
 		int loops = 100;
-		long id = 23475;
+		long id = 23475;		
 		LongSlidingWindow win = new LongSlidingWindow(loops);
-		reg.setRawDataEnabled(id, false, true);
+//		//reg.setRawDataEnabled(id, false, true);
 		IPeriodAggregator ipa = null;
-		reg.log.info("Starting Loop...");
-		for(int i = 0; i < 100; i++) {
+		reg.log.info("Starting Warmup");
+		for(int i = 0; i < 1500000; i++) {
 			long v = Math.abs(R.nextInt(100));
 			DataPoint dp = DataPoint.newBuilder()
-					.setGolbalID(id)
+					.setGlobalID(id)
 					.setLongValue(v)
 					.setTimestamp(System.currentTimeMillis())
 					.setValueType(DataPoint.ValueType.LONG)
@@ -108,9 +112,46 @@ public class Registry implements RegistryMXBean {
 			ipa = reg.processDataPoint(dp);			
 			//try { Thread.sleep(100); } catch (Exception x) {}			
 		}
-		reg.log.info("DP Avg: {}, Win Avg: {}", ipa.getMean(), win.avg());
 		reg.log.info(ipa);
-		//try { Thread.sleep(100000); } catch (Exception x) {}
+		ipa = null;
+		id++;
+		int testLoops = 100000;
+//
+		reg.log.info("Starting Test");
+		reg.setRawDataEnabled(id, false, true);
+		win.clear();
+		List<DataPoint> dps = new ArrayList<DataPoint>(testLoops);
+		for(int i = 0; i < testLoops; i++) {
+			long v = Math.abs(R.nextInt(100));
+			dps.add(DataPoint.newBuilder()
+			.setGlobalID(id)
+			.setLongValue(v)
+			.setTimestamp(System.currentTimeMillis())
+			.setValueType(DataPoint.ValueType.LONG)
+			.build());
+		}
+		reg.log.info("Total Samples: {}", dps.size());
+
+		ElapsedTime et = SystemClock.startClock();
+		for(DataPoint dp: dps) {
+			
+//			win.insert(dp.getLongValue());
+			ipa = reg.processDataPoint(dp);			
+			//try { Thread.sleep(100); } catch (Exception x) {}			
+		}
+		String etMsg = et.printAvg("Samples", testLoops); 
+		reg.log.info("Elapsed: {}", etMsg);
+		reg.log.info("DP Avg: {}, Win Avg: {}  DP Median: {}\n\tElapsed: {}", 
+				ipa.getMean(), 
+				win.avg(), 
+				ipa.isRawEnabled() ? ipa.getMedian() :   -1,  
+				etMsg);
+//		((PeriodAggregatorImpl)ipa).setRawEnabled(false);
+//		ipa = null;
+//		//reg.aggregators.clear();
+		System.gc();
+		reg.log.info(ipa);
+		try { Thread.sleep(3000); } catch (Exception x) {}
 	}
 
 	/**
@@ -141,7 +182,7 @@ public class Registry implements RegistryMXBean {
 	 * @return The processed aggregator
 	 */
 	public IPeriodAggregator processDataPoint(DataPoint dataPoint) {
-		final long ID = dataPoint.getGolbalID();
+		final long ID = dataPoint.getGlobalID();
 		PeriodAggregatorImpl pai = null;
 		if(aggregators.putIfAbsent(ID, PeriodAggregatorImpl.CONST)==null) {
 			pai = new PeriodAggregatorImpl(dataPoint.hasDoubleValue());

@@ -13,6 +13,7 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -76,12 +77,15 @@ public class UnsafeAdapter {
     
 	
 	/** The configured native memory tracking enablement  */
-	private static final boolean trackMem;
+	public static final boolean trackMem;
+	/** The configured native memory alignment enablement  */
+	public static final boolean alignMem;
 	
-	/** A set of the allocating/re-allocating callers */
-	private static final Set<String> allocators;
-	/** A set of the de-allocating callers */
-	private static final Set<String> deallocators;
+	
+//	/** A set of the allocating/re-allocating callers */
+//	private static final Set<String> allocators;
+//	/** A set of the de-allocating callers */
+//	private static final Set<String> deallocators;
 	
 	
 	/** A map of memory allocation sizes keyed by the address */
@@ -131,23 +135,23 @@ public class UnsafeAdapter {
     	 */
     	public int getTotalAllocationCount();
     	
-    	/**
-    	 * Returns the distinct native memory de-allocating callers
-    	 * @return the distinct native memory de-allocating callers
-    	 */
-    	public Set<String> getDeallocators();
+//    	/**
+//    	 * Returns the distinct native memory de-allocating callers
+//    	 * @return the distinct native memory de-allocating callers
+//    	 */
+//    	public Set<String> getDeallocators();
+//    	
+//    	/**
+//    	 * Returns the distinct native memory allocating callers
+//    	 * @return the distinct native memory allocating callers
+//    	 */
+//    	public Set<String> getAllocators();
     	
-    	/**
-    	 * Returns the distinct native memory allocating callers
-    	 * @return the distinct native memory allocating callers
-    	 */
-    	public Set<String> getAllocators();
-    	
-    	/**
-    	 * Returns the distinct native memory allocating callers with no de-allocating calls.
-    	 * @return the distinct native memory allocating callers with no de-allocating calls.
-    	 */
-    	public Set<String> getNonDeallocatingAllocators();
+//    	/**
+//    	 * Returns the distinct native memory allocating callers with no de-allocating calls.
+//    	 * @return the distinct native memory allocating callers with no de-allocating calls.
+//    	 */
+//    	public Set<String> getNonDeallocatingAllocators();
     	
     	/**
     	 * Returns the size of the memory allocation cleaner reference queue
@@ -208,34 +212,34 @@ public class UnsafeAdapter {
 			return t/1024/1024;
 		}
 
-		/**
-		 * {@inheritDoc}
-		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getDeallocators()
-		 */
-		@Override
-		public Set<String> getDeallocators() {
-			return deallocators;
-		}
+//		/**
+//		 * {@inheritDoc}
+//		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getDeallocators()
+//		 */
+//		@Override
+//		public Set<String> getDeallocators() {
+//			return deallocators;
+//		}
+//
+//		/**
+//		 * {@inheritDoc}
+//		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getAllocators()
+//		 */
+//		@Override
+//		public Set<String> getAllocators() {			
+//			return allocators;
+//		}
 
-		/**
-		 * {@inheritDoc}
-		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getAllocators()
-		 */
-		@Override
-		public Set<String> getAllocators() {			
-			return allocators;
-		}
-
-		/**
-		 * {@inheritDoc}
-		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getNonDeallocatingAllocators()
-		 */
-		@Override
-		public Set<String> getNonDeallocatingAllocators() {
-			Set<String> allocs = new HashSet<String>(allocators);
-			allocs.removeAll(deallocators);
-			return allocs;			
-		}    	
+//		/**
+//		 * {@inheritDoc}
+//		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getNonDeallocatingAllocators()
+//		 */
+//		@Override
+//		public Set<String> getNonDeallocatingAllocators() {
+//			Set<String> allocs = new HashSet<String>(allocators);
+//			allocs.removeAll(deallocators);
+//			return allocs;			
+//		}    	
 		
     	/**
     	 * {@inheritDoc}
@@ -271,13 +275,25 @@ public class UnsafeAdapter {
     public static class MemoryAllocationReference extends PhantomReference<DeAllocateMe> {
     	/** The memory addresses owned by this reference */
     	private final long[] addresses;
+    	/** Debug runnable */
+    	private final Runnable runOnClear;
     	
 		/**
 		 * Creates a new MemoryAllocationReference
 		 * @param referent the memory address holder
 		 */
-		public MemoryAllocationReference(DeAllocateMe referent) {
+		public MemoryAllocationReference(final DeAllocateMe referent) {
 			super(referent, deallocations);
+			if(LOG.isTraceEnabled()) {
+				final String refMsg = referent.getClass().getName() + " " + Arrays.toString(referent.getAddresses());
+				runOnClear = new Runnable() {
+					public void run() {
+						LOG.trace("Deallocated instance: " + refMsg);
+					}
+				};
+			} else {
+				runOnClear = null;
+			}
 			refQueueSize.incrementAndGet();
 			addresses = referent==null ? EMPTY_LONG_ARR : referent.getAddresses();
 			for(long address: addresses) {
@@ -290,7 +306,7 @@ public class UnsafeAdapter {
 			for(long address: addresses) {
 				freeMemory(address);
 				deAllocs.remove(address);
-				LOG.trace("Freed Address:{}", address);
+				if(runOnClear!=null) runOnClear.run();
 			}
 			super.clear();
 		}
@@ -333,7 +349,14 @@ public class UnsafeAdapter {
     		refs.add(new MemoryAllocationReference(dame));
     	}
     	if(refs.isEmpty()) return EMPTY_ALLOC_LIST;
-    	LOG.trace("Created {} MemoryAllocationReferences", refs.size());
+    	if(LOG.isTraceEnabled()) {
+    		final List<String> names = new ArrayList<String>(deallocators.length);
+    		for(DeAllocateMe dame: deallocators) {
+    			if(dame==null) continue;
+    			names.add(dame.getClass().getName() + " " + Arrays.toString(dame.getAddresses()));
+    		}
+    		LOG.trace("Created {} MemoryAllocationReferences: {}", refs.size(), names.toString());
+    	}
     	return Collections.unmodifiableList(refs);
     }
     
@@ -343,6 +366,7 @@ public class UnsafeAdapter {
 
     static {
     	Thread t = new Thread(deallocator, "UnsafeAdapterDeallocatorThread");
+    	t.setPriority(Thread.MAX_PRIORITY);
     	t.setDaemon(true);
     	t.start();
 
@@ -375,17 +399,18 @@ public class UnsafeAdapter {
             FIVE_COPY = copyMemCount>1;
             FOUR_SET = setMemCount>1;
         	trackMem = System.getProperties().containsKey(Constants.TRACK_MEM_PROP);   
+        	alignMem = System.getProperties().containsKey(Constants.ALIGN_MEM_PROP);
         	if(trackMem) {
         		memoryAllocations = new TLongLongHashMap(1024, 0.75f, 0L, 0L);
         		totalMemoryAllocated = new AtomicLong(0L);
-        		deallocators = new HashSet<String>(1024);
-        		allocators = new HashSet<String>(1024);
+//        		deallocators = new HashSet<String>(1024);
+//        		allocators = new HashSet<String>(1024);
         		JMXHelper.registerMBean(new UnsafeMemory(), JMXHelper.objectName("%s:%s=%s", UnsafeAdapter.class.getPackage().getName(), "service", UnsafeMemory.class.getSimpleName()));
         	} else {
         		totalMemoryAllocated = null;
         		memoryAllocations = null;
-        		deallocators = null;
-        		allocators = null;
+//        		deallocators = null;
+//        		allocators = null;
         	}
         } catch (Exception e) {
             throw new AssertionError(e);
@@ -450,7 +475,7 @@ public class UnsafeAdapter {
 			synchronized(totalMemoryAllocated) {
 				memoryAllocations.put(address, size);
 				totalMemoryAllocated.addAndGet(size);
-				allocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
+//				allocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
 			}
 		}
 		return address;
@@ -466,7 +491,7 @@ public class UnsafeAdapter {
 			synchronized(totalMemoryAllocated) {
 				long size = memoryAllocations.remove(address);				
 				totalMemoryAllocated.addAndGet(-1L * size);
-				deallocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
+//				deallocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
 			}
 		}		
 		UNSAFE.freeMemory(address);
@@ -487,7 +512,7 @@ public class UnsafeAdapter {
 				totalMemoryAllocated.addAndGet(-1L * size);
 				memoryAllocations.put(newAddress, bytes);
 				totalMemoryAllocated.addAndGet(bytes);
-				allocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
+//				allocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
 			}			
 		}
 		return newAddress;
@@ -606,12 +631,15 @@ public class UnsafeAdapter {
     }	
     
     /**
-     * Finds the next <b><code>power of 2</code></b> higher or equal to than the passed value. 
+     * Finds the next <b><code>power of 2</code></b> higher or equal to than the passed value.
+     * If {@link #alignMem} is false, will simply return the passed value. 
      * @param value The initial value
      * @return the pow2
      */
     public static int findNextPositivePowerOfTwo(final int value) {
-		return 1 << (32 - Integer.numberOfLeadingZeros(value - 1));
+//		if(alignMem) return 1 << (32 - Integer.numberOfLeadingZeros(value - 1));
+//		return value;
+    	return  1 << (32 - Integer.numberOfLeadingZeros(value - 1));
 	}    
 
 	/**

@@ -24,8 +24,6 @@
  */
 package org.helios.pag.period;
 
-import org.helios.pag.core.datapoints.Core.DataPoint;
-import org.helios.pag.period.impl.PeriodAggregatorImpl;
 
 /**
  * <p>Title: IPeriodAggregator</p>
@@ -48,6 +46,12 @@ public interface IPeriodAggregator {
 	 * @return the timestamp of the last raw metric
 	 */
 	public long getLastTime();
+	
+	/**
+	 * Indicates if this aggregator is accumulating the raw data stream
+	 * @return tue if aggregating, false otherwise
+	 */
+	public boolean isRawEnabled();
 	
 	
 	/**
@@ -122,5 +126,23 @@ public interface IPeriodAggregator {
 	 * @return the maximum value
 	 */
 	public Number getMax();
+	
+	/**
+	 * Returns the median value in the raw data buffer
+	 * @return the median value in the raw data buffer
+	 */
+	public long getLongMedian();
+
+	/**
+	 * Returns the median value in the raw data buffer
+	 * @return the median value in the raw data buffer
+	 */
+	public double getDoubleMedian();
+	
+	/**
+	 * Returns the median value in the raw data buffer
+	 * @return the median value in the raw data buffer
+	 */
+	public Number getMedian();
 	
 }
