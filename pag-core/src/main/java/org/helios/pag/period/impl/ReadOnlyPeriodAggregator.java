@@ -20,7 +20,7 @@ public class ReadOnlyPeriodAggregator  implements IPeriodAggregator, DeAllocateM
 	protected final long address;
 
 	/** The offset of the global id */
-	public final static byte ID = UnsafeAdapter.LONG_SIZE + 1;
+	public final static byte ID = UnsafeAdapter.LONG_SIZE + 1;		// 8
 	/** The offset of the last time */
 	public final static byte LAST_TIME = ID;
 	/** The offset of the count */
@@ -33,10 +33,8 @@ public class ReadOnlyPeriodAggregator  implements IPeriodAggregator, DeAllocateM
 	public final static byte MEAN = MAX + UnsafeAdapter.LONG_SIZE;
 	/** The offset of the long/double indicator (double is 0, long is 1) */
 	public final static byte DOUBLE_OR_LONG = MEAN + UnsafeAdapter.LONG_SIZE;	
-	/** The offset of the address to the raw buffer */
-	public final static byte RAW = DOUBLE_OR_LONG + 1;
 	/** The total memory allocation  */
-	public final static byte TOTAL = RAW + UnsafeAdapter.LONG_SIZE;
+	public final static byte TOTAL = DOUBLE_OR_LONG + UnsafeAdapter.LONG_SIZE;
 	
 	/** A zero byte value */
 	public static final byte ZERO_BYTE = 0;
@@ -107,7 +105,7 @@ public class ReadOnlyPeriodAggregator  implements IPeriodAggregator, DeAllocateM
 	 */
 	@Override
 	public boolean isLong() {
-		return UnsafeAdapter.getByte(DOUBLE_OR_LONG)==LONG;
+		return UnsafeAdapter.getByte(address + DOUBLE_OR_LONG)==LONG;
 	}
 
 	/**
@@ -116,61 +114,55 @@ public class ReadOnlyPeriodAggregator  implements IPeriodAggregator, DeAllocateM
 	 */
 	@Override
 	public boolean isDouble() {
-		return UnsafeAdapter.getByte(DOUBLE_OR_LONG)==DOUBLE;
+		return UnsafeAdapter.getByte(address + DOUBLE_OR_LONG)==DOUBLE;
 	}
 
 	@Override
 	public double getDoubleMean() {
-		// TODO Auto-generated method stub
-		return 0;
+		return UnsafeAdapter.getDouble(address + MEAN);
 	}
 
 	@Override
 	public double getDoubleMin() {
-		// TODO Auto-generated method stub
-		return 0;
+		return UnsafeAdapter.getDouble(address + MIN);
 	}
 
 	@Override
 	public double getDoubleMax() {
-		// TODO Auto-generated method stub
-		return 0;
+		return UnsafeAdapter.getDouble(address + MAX);
 	}
 
 	@Override
 	public long getLongMean() {
-		// TODO Auto-generated method stub
-		return 0;
+		return UnsafeAdapter.getLong(address + MEAN);
 	}
 
 	@Override
 	public long getLongMin() {
-		// TODO Auto-generated method stub
-		return 0;
+		return UnsafeAdapter.getLong(address + MIN);
 	}
 
 	@Override
 	public long getLongMax() {
-		// TODO Auto-generated method stub
-		return 0;
+		return UnsafeAdapter.getLong(address + MAX);
 	}
 
 	@Override
 	public Number getMean() {
-		// TODO Auto-generated method stub
-		return null;
+		if(isDouble()) return getDoubleMean();
+		return getLongMean();
 	}
 
 	@Override
 	public Number getMin() {
-		// TODO Auto-generated method stub
-		return null;
+		if(isDouble()) return getDoubleMin();
+		return getLongMin();
 	}
 
 	@Override
 	public Number getMax() {
-		// TODO Auto-generated method stub
-		return null;
+		if(isDouble()) return getDoubleMax();
+		return getLongMax();
 	}
 	
 	

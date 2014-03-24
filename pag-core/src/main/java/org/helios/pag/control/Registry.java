@@ -24,6 +24,8 @@
  */
 package org.helios.pag.control;
 
+import java.util.Random;
+
 import javax.management.ObjectName;
 
 import org.apache.logging.log4j.LogManager;
@@ -38,6 +40,7 @@ import org.helios.pag.util.ConfigurationHelper;
 import org.helios.pag.util.JMXHelper;
 import org.helios.pag.util.StringHelper;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
+import org.helios.pag.util.unsafe.collections.LongSlidingWindow;
 
 
 
@@ -86,8 +89,28 @@ public class Registry implements RegistryMXBean {
 	
 	public static void main(String[] args) {
 		Registry reg = Registry.getInstance();
-		
-		try { Thread.sleep(100000); } catch (Exception x) {}
+		Random R = new Random(System.currentTimeMillis());
+		int loops = 100;
+		long id = 23475;
+		LongSlidingWindow win = new LongSlidingWindow(loops);
+		reg.setRawDataEnabled(id, false, true);
+		IPeriodAggregator ipa = null;
+		reg.log.info("Starting Loop...");
+		for(int i = 0; i < 100; i++) {
+			long v = Math.abs(R.nextInt(100));
+			DataPoint dp = DataPoint.newBuilder()
+					.setGolbalID(id)
+					.setLongValue(v)
+					.setTimestamp(System.currentTimeMillis())
+					.setValueType(DataPoint.ValueType.LONG)
+					.build();
+			win.insert(v);
+			ipa = reg.processDataPoint(dp);			
+			//try { Thread.sleep(100); } catch (Exception x) {}			
+		}
+		reg.log.info("DP Avg: {}, Win Avg: {}", ipa.getMean(), win.avg());
+		reg.log.info(ipa);
+		//try { Thread.sleep(100000); } catch (Exception x) {}
 	}
 
 	/**
@@ -101,6 +124,10 @@ public class Registry implements RegistryMXBean {
 		log.info(StringHelper.banner("Registry Started"));
 	}
 	
+	/**
+	 * Processes a collection of data points
+	 * @param dataPoints the collection of data points to process
+	 */
 	public void processDataPoints(DataPoints dataPoints) {
 		if(dataPoints==null || dataPoints.getDataPointsCount()<1) return;
 		for(DataPoint dp: dataPoints.getDataPointsList()) {
@@ -108,9 +135,56 @@ public class Registry implements RegistryMXBean {
 		}
 	}
 	
-	public void processDataPoint(DataPoint dataPoint) {
-		//PeriodAggregatorImpl pai = aggregators.get(dataPoint.)
+	/**
+	 * Process a single data point
+	 * @param dataPoint the data point to process
+	 * @return The processed aggregator
+	 */
+	public IPeriodAggregator processDataPoint(DataPoint dataPoint) {
+		final long ID = dataPoint.getGolbalID();
+		PeriodAggregatorImpl pai = null;
+		if(aggregators.putIfAbsent(ID, PeriodAggregatorImpl.CONST)==null) {
+			pai = new PeriodAggregatorImpl(dataPoint.hasDoubleValue());
+			aggregators.replace(ID, pai);
+		} else {
+			pai = aggregators.get(ID);
+		}
+		return pai.processDataPoint(dataPoint);		
 	}
+	
+	/**
+	 * Sets the enabled state of raw data aggregation in the identified aggregator
+	 * @param id The id of the aggregator
+	 * @param enabled true to enable, false to disable
+	 * @return the modified aggregator or null if the aggregator was not found
+	 */
+	public IPeriodAggregator setRawDataEnabled(long id, boolean enabled) {
+		PeriodAggregatorImpl pai = aggregators.get(id);
+		if(pai==null) return null;
+		pai.setRawEnabled(enabled);
+		return pai;
+	}
+	
+	/**
+	 * Sets the enabled state of raw data aggregation in the identified aggregator,
+	 * creating a new aggregator if it does not exist
+	 * @param id The id of the aggregator
+	 * @param isDouble true for a double, false for a long
+	 * @param enabled true to enable, false to disable
+	 * @return the modified aggregator or null if the aggregator was not found
+	 */
+	public IPeriodAggregator setRawDataEnabled(long id, boolean isDouble, boolean enabled) {		
+		PeriodAggregatorImpl pai = null;
+		if(aggregators.putIfAbsent(id, PeriodAggregatorImpl.CONST)==null) {
+			pai = new PeriodAggregatorImpl(isDouble);
+			aggregators.replace(id, pai);
+		} else {
+			pai = aggregators.get(id);
+		}
+		pai.setRawEnabled(enabled);
+		return pai;
+	}
+	
 	
 	/**
 	 * Returns the timestamp of the start of the current period

@@ -4,6 +4,7 @@
 package org.helios.pag.period.impl;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
@@ -20,12 +21,13 @@ import org.helios.pag.util.unsafe.UnsafeAdapter;
  */
 
 public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
-	
+	/** The raw data container used when a subscriber has requested an aggregation that requires all raw data for the period */
+	protected RawDataContainer rawData = null;
 	
 	/** The offset of the aggregator lock */
-	public final static byte XLOCK = 0;
+	public final static byte XLOCK = 0;							// 8
 	/** The offset of the raw enabled indicator */
-	public final static byte RAW_ENABLED = UnsafeAdapter.LONG_SIZE;
+	public final static byte RAW_ENABLED = UnsafeAdapter.LONG_SIZE;  // 1
 	
 	
 	public static void log(Object msg) {
@@ -33,8 +35,9 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 	}
 	
 	/**
-	 * {@inheritDoc}
-	 * @see org.helios.pag.period.IPeriodAggregator#processDataPoint(org.helios.pag.core.datapoints.Core.DataPoint)
+	 * Processes a new data point into this aggregator
+	 * @param dataPoint The data point to process
+	 * @return this aggregator
 	 */
 	public IPeriodAggregator processDataPoint(final DataPoint dataPoint) {
 		UnsafeAdapter.runInLock(address, new Runnable(){
@@ -47,8 +50,9 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 					if(newCount==1) {
 						UnsafeAdapter.putDouble(address + MEAN, val);
 					} else {
-						UnsafeAdapter.putDouble(address + MEAN, (val + UnsafeAdapter.getDouble(address + MEAN)/2));
+						UnsafeAdapter.putDouble(address + MEAN, avgd((val + UnsafeAdapter.getDouble(address + MEAN)), 2));
 					}
+					if(isRawEnabled()) rawData.append(val);
 				} else {
 					long val = dataPoint.getLongValue();
 					if(val < UnsafeAdapter.getLong(address + MIN)) UnsafeAdapter.putLong(address + MIN, val);
@@ -56,8 +60,9 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 					if(newCount==1) {
 						UnsafeAdapter.putLong(address + MEAN, val);
 					} else {
-						UnsafeAdapter.putLong(address + MEAN, (val + UnsafeAdapter.getLong(address + MEAN)/2));
-					}					
+						UnsafeAdapter.putLong(address + MEAN, avgl((val + UnsafeAdapter.getLong(address + MEAN)), 2));
+					}
+					if(isRawEnabled()) rawData.append(val);
 				}
 			}
 		}); 
@@ -65,10 +70,36 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 	}
 	
 	/**
+	 * Calcs a long average
+	 * @param amt The total
+	 * @param cnt The count
+	 * @return the average
+	 */
+	public static long avgl(double amt, double cnt) {
+		if(amt==0 || cnt==0) return 0L;
+		double d = amt/cnt;
+		return (long)d;
+	}
+	
+	/**
+	 * Calcs a double average
+	 * @param amt The total
+	 * @param cnt The count
+	 * @return the average
+	 */
+	public static double avgd(double amt, double cnt) {
+		if(amt==0 || cnt==0) return 0L;
+		return amt/cnt;
+	}
+	
+	
+	public static final PeriodAggregatorImpl CONST = new PeriodAggregatorImpl(false);
+	
+	/**
 	 * Creates a new PeriodAggregatorImpl
 	 * @param isDouble true for a double, false for a long
 	 */
-	PeriodAggregatorImpl(boolean isDouble) {
+	public PeriodAggregatorImpl(boolean isDouble) {
 		super(isDouble);
 		reset();
 	}
@@ -95,14 +126,28 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 		UnsafeAdapter.putLong(address + COUNT, 0L);
 	}
 	
+	/**
+	 * Indicates if raw data aggregation is enabled
+	 * @return true if raw data aggregation is enabled, false otherwise
+	 */
 	public boolean isRawEnabled() {
-		return UnsafeAdapter.getByte(address + RAW_ENABLED)==ZERO_BYTE;  // ZERO_BYTE = false, ONE_BYTE = true
+		return UnsafeAdapter.getByte(address + RAW_ENABLED)!=ZERO_BYTE;  // ZERO_BYTE = false, ONE_BYTE = true
 	}
 	
+	/**
+	 * Sets the enabled state of raw data aggregation
+	 * @param enabled true to enable, false to disable
+	 */
 	public void setRawEnabled(final boolean enabled) {
 		UnsafeAdapter.runInLock(address, new Runnable(){
-			public void run() {
-				UnsafeAdapter.putByte(address + RAW_ENABLED, enabled ? ONE_BYTE : ZERO_BYTE);			}
+			public void run() {				
+				UnsafeAdapter.putByte(address + RAW_ENABLED, enabled ? ONE_BYTE : ZERO_BYTE);
+				if(enabled && rawData==null) {
+					rawData = RawDataContainer.newInstance();
+				} else if(!enabled && rawData!=null) {
+					rawData = null;
+				}
+			}
 		}); 
 	}
 
@@ -118,6 +163,7 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 		return newval;
 	}
 
+	
 
 	
 	public static void main(String[] args) {
@@ -149,14 +195,37 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
-		builder.append("PeriodAggregatorImpl [getId()=");
+		builder.append("Period [id=");
 		builder.append(getId());
-		builder.append(", getLastTime()=");
+		builder.append(", LastTime=");
 		builder.append(getLastTime());
-		builder.append(", getCount()=");
-		builder.append(getCount());
-		builder.append(", isDouble()=");
-		builder.append(isDouble());
+		final long cnt = getCount();
+		builder.append(", Count=");
+		builder.append(cnt);
+		builder.append(", nType=");
+		final boolean isd = isDouble();		
+		builder.append(isd ? "d" : "l");
+		
+		if(cnt>0) {
+			if(isd) {
+				builder.append(", min=").append(getDoubleMin())
+				.append(", max=").append(getDoubleMax())
+				.append(", mean=").append(getDoubleMean());
+			} else {
+				builder.append(", min=").append(getLongMin())
+				.append(", max=").append(getLongMax())
+				.append(", mean=").append(getLongMean());				
+			}
+			if(isRawEnabled() && rawData!=null) {
+				builder.append("\n\traw=");
+				if(isd) {
+					builder.append(Arrays.toString(rawData.getDoubles()));
+				} else {
+					builder.append(Arrays.toString(rawData.getLongs()));
+				}
+				builder.append("\n");
+			}
+		} 		
 		builder.append("]");
 		return builder.toString();
 	}

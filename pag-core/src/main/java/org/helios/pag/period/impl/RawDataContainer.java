@@ -64,6 +64,10 @@ public class RawDataContainer  {
 	/** The swappable container */
 	private SwappableRawDataContainer internal = null;
 	
+	public static RawDataContainer newInstance() {
+		return new RawDataContainer();  // TODO: Swap out for an iface
+	}
+	
 	
 	private RawDataContainer() {
 		long dataSegment = INIT_ALLOC << 3;
@@ -108,6 +112,10 @@ public class RawDataContainer  {
 		return UnsafeAdapter.getInt(address + SIZE);
 	}
 	
+	protected void incrementSize(int count) {
+		UnsafeAdapter.putInt(address + SIZE, UnsafeAdapter.getInt(address + SIZE) + count);
+	}
+	
 	public long getLong(int index) {
 		return UnsafeAdapter.getLong(address + DATA + (index << 3));
 	}
@@ -126,13 +134,15 @@ public class RawDataContainer  {
 	}
 
 	public void append(long value) {
-		int size = checkCap();
-		UnsafeAdapter.putLong(address + DATA + (size << 3), value);
+		int size = checkCap();		
+		incrementSize(1);
+		UnsafeAdapter.putLong(address + DATA + ((size-1) << 3), value);
 	}
 	
 	public void append(double value) {
 		int size = checkCap();
-		UnsafeAdapter.putDouble(address + DATA + (size << 3), value);
+		incrementSize(1);
+		UnsafeAdapter.putDouble(address + DATA + ((size-1)<< 3), value);
 	}
 	
 	
