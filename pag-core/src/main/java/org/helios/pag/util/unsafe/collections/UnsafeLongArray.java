@@ -629,7 +629,9 @@ public class UnsafeLongArray extends UnsafeArray {
     	_check();
     	if(size==0) return new double[0];
     	double[] arr = new double[size];
-    	UnsafeAdapter.copyMemory(null, address, arr, DOUBLE_ARRAY_OFFSET, size << 3);
+    	long[] a = getArray();
+    	for(int x = 0; x< a.length; x++) { arr[x] = a[x]; }
+    	//UnsafeAdapter.copyMemory(null, address, arr, DOUBLE_ARRAY_OFFSET, size << 3);
     	return arr;    	
     }
     

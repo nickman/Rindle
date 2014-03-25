@@ -30,6 +30,7 @@ import java.util.Random;
 
 import javax.management.ObjectName;
 
+import org.apache.commons.math3.stat.StatUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
@@ -45,6 +46,9 @@ import org.helios.pag.util.SystemClock;
 import org.helios.pag.util.SystemClock.ElapsedTime;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 import org.helios.pag.util.unsafe.collections.LongSlidingWindow;
+
+import cern.colt.list.DoubleArrayList;
+import cern.jet.stat.Descriptive;
 
 
 
@@ -108,14 +112,14 @@ public class Registry implements RegistryMXBean {
 					.setTimestamp(System.currentTimeMillis())
 					.setValueType(DataPoint.ValueType.LONG)
 					.build();
-			win.insert(v);
+			//win.insert(v);
 			ipa = reg.processDataPoint(dp);			
 			//try { Thread.sleep(100); } catch (Exception x) {}			
 		}
 		reg.log.info(ipa);
 		ipa = null;
 		id++;
-		int testLoops = 100000;
+		int testLoops = 10000;
 //
 		reg.log.info("Starting Test");
 		reg.setRawDataEnabled(id, false, true);
@@ -131,12 +135,13 @@ public class Registry implements RegistryMXBean {
 			.build());
 		}
 		reg.log.info("Total Samples: {}", dps.size());
-
+		DoubleArrayList dal = new DoubleArrayList(dps.size());
 		ElapsedTime et = SystemClock.startClock();
 		for(DataPoint dp: dps) {
 			
-//			win.insert(dp.getLongValue());
+			win.insert(dp.getLongValue());
 			ipa = reg.processDataPoint(dp);			
+			dal.add(dp.getLongValue());
 			//try { Thread.sleep(100); } catch (Exception x) {}			
 		}
 		String etMsg = et.printAvg("Samples", testLoops); 
@@ -146,12 +151,35 @@ public class Registry implements RegistryMXBean {
 				win.avg(), 
 				ipa.isRawEnabled() ? ipa.getMedian() :   -1,  
 				etMsg);
+		
+		final int dalSize = dal.size();
+		reg.log.info("DAL:{}\n\tMax:{}\n\tMin:{}", dalSize, Descriptive.max(dal), Descriptive.min(dal));
+		double variance = StatUtils.variance(dal.elements());
+		double stddev = Math.sqrt(variance);
+		reg.log.info("Variance: {}  StdDev: {}", variance, stddev);
+//		reg.log.info("Colt gm: {}", Descriptive.geometricMean(dal));
+//		reg.log.info("Colt hm: {}", Descriptive.harmonicMean(dalSize, Descriptive.sumOfInversions(dal, 0, dalSize -1)));
+//		reg.log.info("Colt mean: {}", Descriptive.mean(dal));
+//		dal.sort();
+//		double median = Descriptive.median(dal);
+//		reg.log.info("Colt median: {}", median);
+//		reg.log.info("Colt lag1: {}", Descriptive.lag1(dal, median));
+//		reg.log.info("Colt meanDeviation: {}", Descriptive.meanDeviation(dal, median));
+//		reg.log.info("Colt product: {}", Descriptive.product(dal));
+//		reg.log.info("Colt quantile: {}", Descriptive.quantile(dal, 0.99d));
+//		reg.log.info("Colt inverse quantile: {}", Descriptive.quantileInverse(dal, 0.1d));
+//		reg.log.info("Colt rankInterpolated: {}", Descriptive.rankInterpolated(dal, 99d));
+//		reg.log.info("Colt sampleVariance: {}", Descriptive.sampleVariance(dal, median));
 //		((PeriodAggregatorImpl)ipa).setRawEnabled(false);
 //		ipa = null;
 //		//reg.aggregators.clear();
+		reg.log.info("\nMEM STATS\n{}", UnsafeAdapter.printUnsafeMemoryStats());
+		reg.aggregators.clear();
+		System.runFinalization();
 		System.gc();
 		reg.log.info(ipa);
 		try { Thread.sleep(3000); } catch (Exception x) {}
+		reg.log.info("\nMEM STATS\n{}", UnsafeAdapter.printUnsafeMemoryStats());
 	}
 
 	/**

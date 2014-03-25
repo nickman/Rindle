@@ -198,5 +198,23 @@ public class ReadOnlyPeriodAggregator  implements IPeriodAggregator, DeAllocateM
 		throw new UnsupportedOperationException();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.period.IPeriodAggregator#getDoubles()
+	 */
+	@Override
+	public double[] getDoubles() {
+		throw new UnsupportedOperationException();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.period.IPeriodAggregator#getLongs()
+	 */
+	@Override
+	public long[] getLongs() {
+		throw new UnsupportedOperationException();
+	}
+
 	
 }

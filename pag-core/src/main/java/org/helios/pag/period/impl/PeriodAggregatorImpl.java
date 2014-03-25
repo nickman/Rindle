@@ -204,8 +204,31 @@ public class PeriodAggregatorImpl extends ReadOnlyPeriodAggregator {
 //			log("Cleared Aggregators");
 			System.gc();
 			try { Thread.sleep(5000); } catch (Exception ex) {}
-		}
-		
+		}		
+	}
+	
+	@Override
+	public double[] getDoubles() {
+		if(!isRawEnabled()) throw new IllegalStateException("The aggregator does not have raw data enabled", new Throwable());
+		if(isDouble()) return rawData.getDoubles();
+		long[] ls = rawData.getLongs();
+		double[] ds = new double[ls.length];
+		for(int x = 0; x < ds.length; x++) ds[x] = ls[x];
+		return ds;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.period.IPeriodAggregator#getLongs()
+	 */
+	@Override
+	public long[] getLongs() {
+		if(!isRawEnabled()) throw new IllegalStateException("The aggregator does not have raw data enabled", new Throwable());
+		if(isLong()) return rawData.getLongs();
+		double[] ds = rawData.getDoubles();
+		long[] ls = new long[ds.length];
+		for(int x = 0; x < ds.length; x++) ls[x] = (long)ds[x];
+		return ls;
 	}
 	
 	

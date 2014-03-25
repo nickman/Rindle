@@ -10,6 +10,8 @@ import static org.helios.pag.Constants.INIT_SLOTS_ALLOC;
 import static org.helios.pag.Constants.MAX_SLOTS_ALLOC;
 import static org.helios.pag.Constants.RESIZE_SLOTS_ALLOC;
 
+import java.util.Arrays;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.helios.pag.Stats;
@@ -35,16 +37,24 @@ public class RawDataContainer  {
 	 */
 	private class SwappableRawDataContainer implements DeAllocateMe {		
 		/** The address of the swappable container */
-		private final long address;
+		private final long[] _address = new long[1];
 
 		public SwappableRawDataContainer(long address) {
-			this.address = address;
+			this._address[0] = address;
+			UnsafeAdapter.registerForDeAlloc(this);
 		}
 		
 		@Override
 		public long[] getAddresses() {
-			return new long[]{address};
+			return _address;
 		}		
+		
+		/**
+		 * Clears the address since it was reallocated
+		 */
+		private void clear() {
+			this._address[0] = -1L;
+		}
 		
 	}
 	
@@ -63,7 +73,12 @@ public class RawDataContainer  {
 		return new RawDataContainer(INIT_ALLOC);  // TODO: Swap out for an iface
 	}
 	
+	public String toString() {
+		int size = size();
+		return String.format("RDC: cap:%s, size:%s, data:%s", capacity(), size, size <= 128 ? Arrays.toString(getLongs()) : "[elements:]" + size);
+	}
 	
+
 	/**
 	 * Creates a new RawDataContainer of the specified number of elements minus one, meaning it will hold the capacity, current size and <b><code>totalSize-1</code></b> raw data elements.
 	 * @param totalSize The size of the container to create
@@ -75,9 +90,27 @@ public class RawDataContainer  {
 		UnsafeAdapter.putInt(address + CAPACITY, totalSize -1);
 		UnsafeAdapter.putInt(address + SIZE, 0);
 		UnsafeAdapter.setMemory(address + DATA, actualBytes - DATA, ZERO_BYTE);
+		LOG.info("New Cap: {}, Size: {}", capacity(), size());
 		internal = new SwappableRawDataContainer(address);		
 	}
 	
+	/**
+	 * Creates a new swappable raw data container
+	 * @param currentCapacity The current capacity
+	 * @param currentSize The current size
+	 * @return a new swappable raw data container
+	 */
+	protected SwappableRawDataContainer upgrade(int currentCapacity, int currentSize) {
+		final int totalBytes = (currentCapacity + ALLOC_SIZE) << 3;
+		final int actualBytes = UnsafeAdapter.findNextPositivePowerOfTwo(totalBytes);
+		long newAddress = UnsafeAdapter.reallocateMemory(address, actualBytes);
+		UnsafeAdapter.putInt(newAddress + CAPACITY, currentCapacity + ALLOC_SIZE -1);
+		if(internal!=null) internal.clear();
+		internal = new SwappableRawDataContainer(newAddress);	
+		address = newAddress;
+		//LOG.info("Extended: Count: {}, Cap: {}, Size: {}", upgrades, capacity(), size());		
+		return internal;
+	}
 
 	
 	
@@ -193,6 +226,7 @@ public class RawDataContainer  {
 		} else { 
 			size = incrementSize(1);
 		}
+		UnsafeAdapter.putInt(address + SIZE, size);
 		UnsafeAdapter.putLong(address + DATA + ((size-1)<< 3), value);
 	}
 	
@@ -206,7 +240,8 @@ public class RawDataContainer  {
 			size = checkCap();
 		} else { 
 			size = incrementSize(1);
-		}
+		}		
+		UnsafeAdapter.putInt(address + SIZE, size);
 		UnsafeAdapter.putDouble(address + DATA + ((size-1)<< 3), value);
 	}
 	
@@ -228,7 +263,7 @@ public class RawDataContainer  {
 					roll(cap);
 				} else {
 					internal = upgrade(cap, size);
-					address = internal.address;
+					address = internal._address[0];
 					size++;
 				}
 			}
@@ -248,21 +283,6 @@ public class RawDataContainer  {
 	
 	
 	
-	/**
-	 * Creates a new swappable raw data container
-	 * @param currentCapacity The current capacity
-	 * @param currentSize The current size
-	 * @return a new swappable raw data container
-	 */
-	protected SwappableRawDataContainer upgrade(int currentCapacity, int currentSize) {
-		//LOG.info("Upgrading from {} to {}", currentCapacity, currentCapacity + ALLOC_SIZE);
-		final int totalBytes = (currentCapacity + ALLOC_SIZE) << 3;
-		final int actualBytes = UnsafeAdapter.findNextPositivePowerOfTwo(totalBytes);
-		long newAddress = UnsafeAdapter.reallocateMemory(address, actualBytes);
-		UnsafeAdapter.putInt(newAddress + CAPACITY, currentCapacity + ALLOC_SIZE -1);
-		internal = new SwappableRawDataContainer(newAddress);		
-		return internal;
-	}
 	
 	/**
 	 * Figures out if the container can be upgraded, or if it needs to go into roll mode

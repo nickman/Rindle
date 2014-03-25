@@ -10,14 +10,13 @@ import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.nio.ByteBuffer;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
@@ -26,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.pag.Constants;
-import org.helios.pag.util.ConfigurationHelper;
 import org.helios.pag.util.JMXHelper;
 import org.helios.pag.util.StringHelper;
 
@@ -87,6 +85,9 @@ public class UnsafeAdapter {
 //	/** A set of the de-allocating callers */
 //	private static final Set<String> deallocators;
 	
+	/** The unsafe memory management MBean */
+	private static final UnsafeMemory unsafeMemory;
+	
 	
 	/** A map of memory allocation sizes keyed by the address */
 	private static final TLongLongHashMap memoryAllocations;
@@ -109,6 +110,26 @@ public class UnsafeAdapter {
     
     
     public static interface UnsafeMemoryMBean {
+    	
+    	/** The map key for the total memory allocation in bytes */
+    	public static final String ALLOC_MEM = "Memory";
+    	/** The map key for the total memory allocation in KB */
+    	public static final String ALLOC_MEMK = "MemoryKb";
+    	/** The map key for the total memory allocation in MB */
+    	public static final String ALLOC_MEMM = "MemoryMb";
+    	/** The map key for the total number of current allocations */
+    	public static final String ALLOC_COUNT = "Allocations";
+    	/** The map key for the reference queue size */
+    	public static final String REFQ_SIZE= "RefQSize";
+    	/** The map key for the pending phantom references */
+    	public static final String PENDING_COUNT = "Pending";
+    	
+    	/**
+    	 * Returns a map of unsafe memory stats keyed by the stat name
+    	 * @return a map of unsafe memory stats
+    	 */
+    	public Map<String, Long> getState();
+    	
     	/**
     	 * Returns the total off-heap allocated memory in bytes
     	 * @return the total off-heap allocated memory
@@ -126,33 +147,13 @@ public class UnsafeAdapter {
     	 * @return the total off-heap allocated memory
     	 */
     	public long getTotalAllocatedMemoryMb();
-    	
-    	
-    	
+
     	/**
     	 * Returns the total number of existing allocations
     	 * @return the total number of existing allocations
     	 */
     	public int getTotalAllocationCount();
-    	
-//    	/**
-//    	 * Returns the distinct native memory de-allocating callers
-//    	 * @return the distinct native memory de-allocating callers
-//    	 */
-//    	public Set<String> getDeallocators();
-//    	
-//    	/**
-//    	 * Returns the distinct native memory allocating callers
-//    	 * @return the distinct native memory allocating callers
-//    	 */
-//    	public Set<String> getAllocators();
-    	
-//    	/**
-//    	 * Returns the distinct native memory allocating callers with no de-allocating calls.
-//    	 * @return the distinct native memory allocating callers with no de-allocating calls.
-//    	 */
-//    	public Set<String> getNonDeallocatingAllocators();
-    	
+    	    	
     	/**
     	 * Returns the size of the memory allocation cleaner reference queue
     	 * @return the size of the memory allocation cleaner reference queue
@@ -164,9 +165,58 @@ public class UnsafeAdapter {
     	 * @return the number of retained phantom references to memory allocations
     	 */
     	public int getPendingRefs();
+    	
+//    	/**
+//   	 * Returns the distinct native memory de-allocating callers
+//   	 * @return the distinct native memory de-allocating callers
+//   	 */
+//   	public Set<String> getDeallocators();
+//   	
+//   	/**
+//   	 * Returns the distinct native memory allocating callers
+//   	 * @return the distinct native memory allocating callers
+//   	 */
+//   	public Set<String> getAllocators();
+   	
+//   	/**
+//   	 * Returns the distinct native memory allocating callers with no de-allocating calls.
+//   	 * @return the distinct native memory allocating callers with no de-allocating calls.
+//   	 */
+//   	public Set<String> getNonDeallocatingAllocators();
+    	
     }
     
     public static class UnsafeMemory implements UnsafeMemoryMBean  {
+    	
+    	/** The map key for the total memory allocation in bytes */
+    	public static final String ALLOC_MEM = "Memory";
+    	/** The map key for the total memory allocation in KB */
+    	public static final String ALLOC_MEMK = "MemoryKb";
+    	/** The map key for the total memory allocation in MB */
+    	public static final String ALLOC_MEMM = "MemoryMb";
+    	/** The map key for the total number of current allocations */
+    	public static final String ALLOC_COUNT = "Allocations";
+    	/** The map key for the reference queue size */
+    	public static final String REFQ_SIZE= "RefQSize";
+    	/** The map key for the pending phantom references */
+    	public static final String PENDING_COUNT = "Pending";
+    	
+    	/**
+    	 * {@inheritDoc}
+    	 * @see org.helios.pag.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getState()
+    	 */
+    	@Override
+    	public Map<String, Long> getState() {
+    		Map<String, Long> map = new HashMap<String, Long>(6);
+    		map.put(ALLOC_MEM, getTotalAllocatedMemory());
+    		map.put(ALLOC_MEMK, getTotalAllocatedMemoryKb());
+    		map.put(ALLOC_MEMM, getTotalAllocatedMemoryMb());
+    		map.put(ALLOC_COUNT, (long)getTotalAllocationCount());
+    		map.put(REFQ_SIZE, getRefQueueSize());
+    		map.put(PENDING_COUNT, (long)getPendingRefs());    		
+    		return map;
+    	}
+    	
 
 		/**
 		 * {@inheritDoc}
@@ -271,8 +321,11 @@ public class UnsafeAdapter {
     protected static final NonBlockingHashMapLong<MemoryAllocationReference> deAllocs = new NonBlockingHashMapLong<MemoryAllocationReference>(1024, false);
     
     private static final ReferenceQueue<DeAllocateMe> deallocations = new ReferenceQueue<DeAllocateMe>(); 
+    private static final AtomicLong refIndexFactory = new AtomicLong(0L);
     
     public static class MemoryAllocationReference extends PhantomReference<DeAllocateMe> {
+    	/** The index of this reference */
+    	private final long index = refIndexFactory.incrementAndGet();
     	/** The memory addresses owned by this reference */
     	private final long[] addresses;
     	/** Debug runnable */
@@ -284,28 +337,31 @@ public class UnsafeAdapter {
 		 */
 		public MemoryAllocationReference(final DeAllocateMe referent) {
 			super(referent, deallocations);
+			refQueueSize.incrementAndGet();
+			addresses = referent==null ? EMPTY_LONG_ARR : referent.getAddresses();
+			deAllocs.put(index, this);
+			
 			if(LOG.isTraceEnabled()) {
-				final String refMsg = referent.getClass().getName() + " " + Arrays.toString(referent.getAddresses());
+				final String name = referent.getClass().getSimpleName();
 				runOnClear = new Runnable() {
 					public void run() {
-						LOG.trace("Deallocated instance: " + refMsg);
+//						final String refMsg = referent.getClass().getName() + " " + Arrays.toString(addresses);
+						LOG.trace("Deallocated instance of {}, Addr:{}", name, Arrays.toString(addresses));
 					}
 				};
 			} else {
 				runOnClear = null;
 			}
-			refQueueSize.incrementAndGet();
-			addresses = referent==null ? EMPTY_LONG_ARR : referent.getAddresses();
-			for(long address: addresses) {
-				deAllocs.put(address, this);
-			}
+			
 		}    	
 		
 		@Override
 		public void clear() {
 			for(long address: addresses) {
-				freeMemory(address);
-				deAllocs.remove(address);
+				if(address!=-1L) {
+					freeMemory(address);
+				}
+				deAllocs.remove(index);
 				if(runOnClear!=null) runOnClear.run();
 			}
 			super.clear();
@@ -357,7 +413,7 @@ public class UnsafeAdapter {
     		}
     		LOG.trace("Created {} MemoryAllocationReferences: {}", refs.size(), names.toString());
     	}
-    	return Collections.unmodifiableList(refs);
+    	return null; //Collections.unmodifiableList(refs);
     }
     
     
@@ -401,12 +457,14 @@ public class UnsafeAdapter {
         	trackMem = System.getProperties().containsKey(Constants.TRACK_MEM_PROP);   
         	alignMem = System.getProperties().containsKey(Constants.ALIGN_MEM_PROP);
         	if(trackMem) {
+        		unsafeMemory = new UnsafeMemory();
         		memoryAllocations = new TLongLongHashMap(1024, 0.75f, 0L, 0L);
         		totalMemoryAllocated = new AtomicLong(0L);
 //        		deallocators = new HashSet<String>(1024);
 //        		allocators = new HashSet<String>(1024);
-        		JMXHelper.registerMBean(new UnsafeMemory(), JMXHelper.objectName("%s:%s=%s", UnsafeAdapter.class.getPackage().getName(), "service", UnsafeMemory.class.getSimpleName()));
+        		JMXHelper.registerMBean(unsafeMemory, JMXHelper.objectName("%s:%s=%s", UnsafeAdapter.class.getPackage().getName(), "service", UnsafeMemory.class.getSimpleName()));
         	} else {
+        		unsafeMemory = null;
         		totalMemoryAllocated = null;
         		memoryAllocations = null;
 //        		deallocators = null;
@@ -432,6 +490,33 @@ public class UnsafeAdapter {
     		UNSAFE.setMemory(offset + getAddressOf(obj), bytes, value);
     	}
     }
+    
+    /** An empty map returned when state is requested by the management interface is disabled */
+    private static final Map<String, Long> EMPTY_STAT_MAP = Collections.unmodifiableMap(new HashMap<String, Long>(0));
+    /** The JVM's end of line character */
+    public static final String EOL = System.getProperty("line.separator", "\n");
+    
+    /**
+     * Returns a map of unsafe memory stats keyed by the stat name
+     * @return a map of unsafe memory stats 
+     */
+    public static Map<String, Long> getUnsafeMemoryStats() {
+    	return trackMem ? unsafeMemory.getState() : EMPTY_STAT_MAP;
+    }
+    
+    /**
+     * Returns a string of the printed memory stats
+     * @return a string of the printed memory stats
+     */
+    public static String printUnsafeMemoryStats() {
+    	if(!trackMem) return "";
+    	StringBuilder b = new StringBuilder();
+    	for(Map.Entry<String, Long> entry: getUnsafeMemoryStats().entrySet()) {
+    		b.append(entry.getKey()).append(" : ").append(entry.getValue()).append(EOL);
+    	}
+    	return b.toString();
+    }
+    
     
     /**
      * Returns the address of the passed object

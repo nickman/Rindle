@@ -36,6 +36,8 @@
 		<protobuf.version>2.5.0</protobuf.version>
 		<thrift.version>0.9.1</thrift.version>
 		<log4j.version>2.0-rc1</log4j.version>
+		<colt.version>1.2.0</colt.version>
+		<math.version>3.1.1</math.version>
 		<!-- Plugin Versions -->
 		<jar-plugin.version>2.3</jar-plugin.version>
 		<source-plugin.version>2.2</source-plugin.version>
@@ -78,7 +80,6 @@
 		    <scope>test</scope>
 		</dependency>
 		
-
       <!--
 	========================================
 	Groovy Artifacts
@@ -95,6 +96,24 @@
 				<classifier>indy</classifier>
 				<version>${groovy.version}</version>
       </dependency>
+
+      <!--
+	========================================
+	Stats
+	========================================
+	-->
+    <dependency>
+      <groupId>colt</groupId>
+      <artifactId>colt</artifactId>
+      <version>${colt.version}</version>
+    </dependency>
+
+
+	<dependency>
+	  <groupId>org.apache.commons</groupId>
+	  <artifactId>commons-math3</artifactId>
+	  <version>${math.version}</version>
+	</dependency>      
 
       <!-- ==========================================================
 		Google p-buffs

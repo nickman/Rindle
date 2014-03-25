@@ -84,7 +84,13 @@ public interface IPeriodAggregator {
 	 * @return the minimum value
 	 */
 	public double getDoubleMin();
-
+	
+	/**
+	 * Returns the raw data as an array of doubles
+	 * @return an array of doubles
+	 */
+	public double[] getDoubles();
+	
 	/**
 	 * Returns the maximum value
 	 * @return the maximum value
@@ -102,6 +108,13 @@ public interface IPeriodAggregator {
 	 * @return the minimum value
 	 */
 	public long getLongMin();
+	
+	/**
+	 * Returns the raw data as an array of longs
+	 * @return an array of longs
+	 */
+	public long[] getLongs();
+	
 
 	/**
 	 * Returns the maximum value
