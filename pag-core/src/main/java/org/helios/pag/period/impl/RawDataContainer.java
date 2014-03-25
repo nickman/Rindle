@@ -26,44 +26,66 @@ import org.helios.pag.util.unsafe.UnsafeAdapter;
  * <p><b><code>org.helios.pag.period.impl.RawDataContainer</code></b>
  */
 
-public class RawDataContainer  {
+public class RawDataContainer implements DeAllocateMe {
 	private static final Logger LOG = LogManager.getLogger(RawDataContainer.class);
-	/**
-	 * <p>Title: SwappableRawDataContainer</p>
-	 * <p>Description: The internal swappable container</p>
-	 * <p>Company: Helios Development Group LLC</p>
-	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><b><code>org.helios.pag.period.impl.RawDataContainer.SwappableRawDataContainer</code></b>
-	 */
-	private class SwappableRawDataContainer implements DeAllocateMe {		
-		/** The address of the swappable container */
-		private final long[] _address = new long[1];
-
-		public SwappableRawDataContainer(long address) {
-			this._address[0] = address;
-			UnsafeAdapter.registerForDeAlloc(this);
-		}
-		
-		@Override
-		public long[] getAddresses() {
-			return _address;
-		}		
-		
-		/**
-		 * Clears the address since it was reallocated
-		 */
-		private void clear() {
-			this._address[0] = -1L;
-		}
-		
-	}
+//	/**
+//	 * <p>Title: SwappableRawDataContainer</p>
+//	 * <p>Description: The internal swappable container</p>
+//	 * <p>Company: Helios Development Group LLC</p>
+//	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+//	 * <p><b><code>org.helios.pag.period.impl.RawDataContainer.SwappableRawDataContainer</code></b>
+//	 */
+//	private class SwappableRawDataContainer implements DeAllocateMe {		
+//		/** The address of the swappable container */
+//		private final long[] _address = new long[1];
+//
+//		public SwappableRawDataContainer(long address) {
+//			this._address[0] = address;
+//			UnsafeAdapter.registerForDeAlloc(this);
+//		}
+//		
+//		@Override
+//		public long[] getAddresses() {
+//			return _address;
+//		}		
+//		
+//		/**
+//		 * Reallocates the memory allocation for this container to enlarge or shrink.
+//		 * @param newSize The new size of the allocation in bytes
+//		 * @return the new address
+//		 */
+//		private long reallocate(long newSize) {
+//			long newAddress = UnsafeAdapter.reallocateAlignedMemory(_address[0], newSize);
+//			_address[0] = newAddress;			
+//			return newAddress;
+//		}
+//		
+//		
+//	}
 	
 	
 	
 	/** The address of the swappable container */
-	private long address;
-	/** The swappable container */
-	private SwappableRawDataContainer internal = null;
+	private long[] address = new long[1];
+//	/** The swappable container */
+//	private SwappableRawDataContainer internal = null;
+	
+
+	@Override
+	public long[] getAddresses() {
+		return address;
+	}		
+	
+	/**
+	 * Reallocates the memory allocation for this container to enlarge or shrink.
+	 * @param newSize The new size of the allocation in bytes
+	 * @return the new address
+	 */
+	private long reallocate(long newSize) {
+		long newAddress = UnsafeAdapter.reallocateAlignedMemory(address[0], newSize);
+		address[0] = newAddress;			
+		return newAddress;
+	}
 	
 	/**
 	 * Creates a new raw data container
@@ -81,35 +103,31 @@ public class RawDataContainer  {
 
 	/**
 	 * Creates a new RawDataContainer of the specified number of elements minus one, meaning it will hold the capacity, current size and <b><code>totalSize-1</code></b> raw data elements.
-	 * @param totalSize The size of the container to create
+	 * @param totalSize The size of the container to create specified as the number of elements it can hold
 	 */
 	private RawDataContainer(int totalSize) {
 		final int totalBytes = totalSize << 3;
-		final int actualBytes = UnsafeAdapter.findNextPositivePowerOfTwo(totalBytes);
-		address = UnsafeAdapter.allocateMemory(actualBytes);
-		UnsafeAdapter.putInt(address + CAPACITY, totalSize -1);
-		UnsafeAdapter.putInt(address + SIZE, 0);
-		UnsafeAdapter.setMemory(address + DATA, actualBytes - DATA, ZERO_BYTE);
+		address[0] = UnsafeAdapter.allocateAlignedMemory(totalBytes);
+		UnsafeAdapter.putInt(address[0] + CAPACITY, totalSize -1);
+		UnsafeAdapter.putInt(address[0] + SIZE, 0);
+//		UnsafeAdapter.setMemory(address[0] + DATA, totalBytes - DATA, ZERO_BYTE);
 		LOG.info("New Cap: {}, Size: {}", capacity(), size());
-		internal = new SwappableRawDataContainer(address);		
+//		internal = new SwappableRawDataContainer(address);	
+		UnsafeAdapter.registerForDeAlloc(this);
 	}
 	
 	/**
-	 * Creates a new swappable raw data container
+	 * Reallocates the swappable raw data container
 	 * @param currentCapacity The current capacity
 	 * @param currentSize The current size
-	 * @return a new swappable raw data container
 	 */
-	protected SwappableRawDataContainer upgrade(int currentCapacity, int currentSize) {
-		final int totalBytes = (currentCapacity + ALLOC_SIZE) << 3;
-		final int actualBytes = UnsafeAdapter.findNextPositivePowerOfTwo(totalBytes);
-		long newAddress = UnsafeAdapter.reallocateMemory(address, actualBytes);
-		UnsafeAdapter.putInt(newAddress + CAPACITY, currentCapacity + ALLOC_SIZE -1);
-		if(internal!=null) internal.clear();
-		internal = new SwappableRawDataContainer(newAddress);	
-		address = newAddress;
-		//LOG.info("Extended: Count: {}, Cap: {}, Size: {}", upgrades, capacity(), size());		
-		return internal;
+	protected void upgrade(int currentCapacity, int currentSize) {		
+		final int totalBytes = (currentCapacity + 1 + ALLOC_SIZE) << 3;
+//		if(LOG.isDebugEnabled()) LOG.debug("Resizing Raw Container @ {}--({}) from {} to {}", address, UnsafeAdapter.sizeOf(address[0]), currentCapacity, currentCapacity + ALLOC_SIZE);
+		reallocate(totalBytes);
+//		LOG.debug("Resized....");
+		UnsafeAdapter.putInt(address[0] + CAPACITY , currentCapacity + ALLOC_SIZE);
+//		if(LOG.isDebugEnabled()) LOG.debug("Resized Raw Container @ {}--({}) to {}", address, UnsafeAdapter.sizeOf(address[0]), capacity());		
 	}
 
 	
@@ -142,7 +160,7 @@ public class RawDataContainer  {
 	 * @return the capacity of this raw data container
 	 */
 	public int capacity() {
-		return UnsafeAdapter.getInt(address + CAPACITY);
+		return UnsafeAdapter.getInt(address[0] + CAPACITY);
 	}
 	
 	/**
@@ -150,7 +168,7 @@ public class RawDataContainer  {
 	 * @return the size of this raw data container
 	 */
 	public int size() {
-		return UnsafeAdapter.getInt(address + SIZE);
+		return UnsafeAdapter.getInt(address[0] + SIZE);
 	}
 	
 	/**
@@ -159,8 +177,8 @@ public class RawDataContainer  {
 	 * @return the new size
 	 */
 	protected int incrementSize(int count) {
-		int now = UnsafeAdapter.getInt(address + SIZE) + count; 
-		UnsafeAdapter.putInt(address + SIZE, now);
+		int now = UnsafeAdapter.getInt(address[0] + SIZE) + count; 
+		UnsafeAdapter.putInt(address[0] + SIZE, now);
 		return now;
 	}
 	
@@ -170,7 +188,7 @@ public class RawDataContainer  {
 	 * @return the long at the specified index
 	 */
 	public long getLong(int index) {
-		return UnsafeAdapter.getLong(address + DATA + (index << 3));
+		return UnsafeAdapter.getLong(address[0] + DATA + (index << 3));
 	}
 
 	/**
@@ -178,7 +196,7 @@ public class RawDataContainer  {
 	 * @return a long array
 	 */
 	public long[] getLongs() {
-		return UnsafeAdapter.getLongArray(address + DATA, size());
+		return UnsafeAdapter.getLongArray(address[0] + DATA, size());
 	}
 	
 	/**
@@ -186,7 +204,7 @@ public class RawDataContainer  {
 	 * @return the median of the raw data
 	 */
 	public double getDoubleMedian() {
-		return Stats.mediand(address + DATA, size());
+		return Stats.mediand(address[0] + DATA, size());
 	}
 	
 	/**
@@ -194,7 +212,7 @@ public class RawDataContainer  {
 	 * @return the median of the raw data
 	 */
 	public long getLongMedian() {
-		return Stats.medianl(address + DATA, size());
+		return Stats.medianl(address[0] + DATA, size());
 	}
 	
 
@@ -204,7 +222,7 @@ public class RawDataContainer  {
 	 * @return the double at the specified index
 	 */
 	public double getDouble(int index) {
-		return UnsafeAdapter.getDouble(address + DATA + (index << 3));
+		return UnsafeAdapter.getDouble(address[0] + DATA + (index << 3));
 	}
 
 	/**
@@ -212,7 +230,7 @@ public class RawDataContainer  {
 	 * @return a double array
 	 */
 	public double[] getDoubles() {
-		return UnsafeAdapter.getDoubleArray(address + DATA, size());
+		return UnsafeAdapter.getDoubleArray(address[0] + DATA, size());
 	}
 
 	/**
@@ -223,11 +241,11 @@ public class RawDataContainer  {
 		int size;
 		if(size() == capacity()) {
 			size = checkCap();
+			UnsafeAdapter.putInt(address[0] + SIZE, size);
 		} else { 
 			size = incrementSize(1);
-		}
-		UnsafeAdapter.putInt(address + SIZE, size);
-		UnsafeAdapter.putLong(address + DATA + ((size-1)<< 3), value);
+		}		
+		UnsafeAdapter.putLong(address[0] + DATA + ((size-1)<< 3), value);
 	}
 	
 	/**
@@ -238,11 +256,11 @@ public class RawDataContainer  {
 		int size;
 		if(size() == capacity()) {
 			size = checkCap();
+			UnsafeAdapter.putInt(address[0] + SIZE, size);
 		} else { 
 			size = incrementSize(1);
-		}		
-		UnsafeAdapter.putInt(address + SIZE, size);
-		UnsafeAdapter.putDouble(address + DATA + ((size-1)<< 3), value);
+		}				
+		UnsafeAdapter.putDouble(address[0] + DATA + ((size-1)<< 3), value);
 	}
 	
 	
@@ -262,8 +280,7 @@ public class RawDataContainer  {
 				if(shouldStartRolling(size)) {
 					roll(cap);
 				} else {
-					internal = upgrade(cap, size);
-					address = internal._address[0];
+					upgrade(cap, size);
 					size++;
 				}
 			}
@@ -278,7 +295,7 @@ public class RawDataContainer  {
 	 * @param capacity The current capacity of the container
 	 */
 	protected void roll(int capacity) {
-		UnsafeAdapter.copyMemory(address + DATA + UnsafeAdapter.LONG_SIZE, address + DATA , (capacity << 3) - UnsafeAdapter.LONG_SIZE);
+		UnsafeAdapter.copyMemory(address[0] + DATA + UnsafeAdapter.LONG_SIZE, address[0] + DATA , (capacity << 3) - UnsafeAdapter.LONG_SIZE);
 	}
 	
 	
@@ -291,7 +308,8 @@ public class RawDataContainer  {
 	 */
 	protected boolean shouldStartRolling(int currentSize) {
 		int allocationIncrement = (currentSize + ALLOC_SIZE > MAX_SIZE) ? MAX_SIZE - currentSize : ALLOC_SIZE;
-		if(allocationIncrement==0) {			
+		if(allocationIncrement==0) {		
+			LOG.info("\n\t---->Container is rolling");
 			return true;  // now we're rolling
 		}		
 		return false;  // swap out for an upgrade

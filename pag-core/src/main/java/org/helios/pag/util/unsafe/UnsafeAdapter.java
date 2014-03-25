@@ -71,7 +71,8 @@ public class UnsafeAdapter {
     public final static int BYTE_ARRAY_OFFSET;
     
     
-    
+    /** The maximum size of a memory allocation request which can be aligned */
+    public static final long MAX_ALIGNED_MEM = 1073741824;   // 1,073,741,824
     
 	
 	/** The configured native memory tracking enablement  */
@@ -90,10 +91,12 @@ public class UnsafeAdapter {
 	
 	
 	/** A map of memory allocation sizes keyed by the address */
-	private static final TLongLongHashMap memoryAllocations;
+	private static final NonBlockingHashMapLong<long[]> memoryAllocations;
     
 	/** The total native memory allocation */
 	private static final AtomicLong totalMemoryAllocated;
+	/** The total native memory allocation overhead for alignment */
+	private static final AtomicLong totalAlignmentOverhead;
 	
 	/**
 	 * Simple out formatted logger
@@ -135,6 +138,13 @@ public class UnsafeAdapter {
     	 * @return the total off-heap allocated memory
     	 */
     	public long getTotalAllocatedMemory();
+    	
+    	/**
+    	 * Returns the total aligned memory overhead in bytes
+    	 * @return the total aligned memory overhead in bytes
+    	 */
+    	public long getAlignedMemoryOverhead();
+    	
     	
     	/**
     	 * Returns the total off-heap allocated memory in Kb
@@ -190,6 +200,9 @@ public class UnsafeAdapter {
     	
     	/** The map key for the total memory allocation in bytes */
     	public static final String ALLOC_MEM = "Memory";
+    	/** The map key for the total memory alignedment overhead in bytes */
+    	public static final String ALLOC_OVER = "AllocationOverhead";
+    	
     	/** The map key for the total memory allocation in KB */
     	public static final String ALLOC_MEMK = "MemoryKb";
     	/** The map key for the total memory allocation in MB */
@@ -209,6 +222,7 @@ public class UnsafeAdapter {
     	public Map<String, Long> getState() {
     		Map<String, Long> map = new HashMap<String, Long>(6);
     		map.put(ALLOC_MEM, getTotalAllocatedMemory());
+    		map.put(ALLOC_OVER, getAlignedMemoryOverhead());
     		map.put(ALLOC_MEMK, getTotalAllocatedMemoryKb());
     		map.put(ALLOC_MEMM, getTotalAllocatedMemoryMb());
     		map.put(ALLOC_COUNT, (long)getTotalAllocationCount());
@@ -226,6 +240,15 @@ public class UnsafeAdapter {
 		public long getTotalAllocatedMemory() {
 			if(!trackMem) return -1L;
 			return totalMemoryAllocated.get();
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getAlignedMemoryOverhead()
+		 */
+		public long getAlignedMemoryOverhead() {
+			if(!trackMem) return -1L;
+			return totalAlignmentOverhead.get();
 		}
 
 		/**
@@ -360,9 +383,10 @@ public class UnsafeAdapter {
 			for(long address: addresses) {
 				if(address!=-1L) {
 					freeMemory(address);
+					if(runOnClear!=null) runOnClear.run();
 				}
 				deAllocs.remove(index);
-				if(runOnClear!=null) runOnClear.run();
+				
 			}
 			super.clear();
 		}
@@ -458,8 +482,9 @@ public class UnsafeAdapter {
         	alignMem = System.getProperties().containsKey(Constants.ALIGN_MEM_PROP);
         	if(trackMem) {
         		unsafeMemory = new UnsafeMemory();
-        		memoryAllocations = new TLongLongHashMap(1024, 0.75f, 0L, 0L);
+        		memoryAllocations = new NonBlockingHashMapLong<long[]>(1024, true);
         		totalMemoryAllocated = new AtomicLong(0L);
+        		totalAlignmentOverhead = new AtomicLong(0L);
 //        		deallocators = new HashSet<String>(1024);
 //        		allocators = new HashSet<String>(1024);
         		JMXHelper.registerMBean(unsafeMemory, JMXHelper.objectName("%s:%s=%s", UnsafeAdapter.class.getPackage().getName(), "service", UnsafeMemory.class.getSimpleName()));
@@ -467,6 +492,7 @@ public class UnsafeAdapter {
         		unsafeMemory = null;
         		totalMemoryAllocated = null;
         		memoryAllocations = null;
+        		totalAlignmentOverhead = null;
 //        		deallocators = null;
 //        		allocators = null;
         	}
@@ -547,39 +573,38 @@ public class UnsafeAdapter {
 	public static Object allocateInstance(Class<?> clazz) throws InstantiationException {
 		return UNSAFE.allocateInstance(clazz);
 	}
-
+	
 	/**
-	 * Allocates a chunk of memory and returns its address
-	 * @param size The number of bytes to allocate
-	 * @return The address of the allocated memory
-	 * @see sun.misc.Unsafe#allocateMemory(long)
+	 * Returns the size of the memory chunk allocated at the specified address.
+	 * Only returns the correct value if the management interface is enabled.
+	 * Otherwise returns -1.
+	 * @param address The address to get the size of 
+	 * @return The size of the memory allocation in bytes
 	 */
-	public static long allocateMemory(long size) {
-		long address = UNSAFE.allocateMemory(size);
+	public static long sizeOf(long address) {
 		if(trackMem) {
-			synchronized(totalMemoryAllocated) {
-				memoryAllocations.put(address, size);
-				totalMemoryAllocated.addAndGet(size);
-//				allocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
-			}
+			long[] alloc = memoryAllocations.get(address);
+			return alloc!=null ? alloc[0] : -1L;
 		}
-		return address;
+		return -1L;
 	}
 	
 	/**
-	 * Frees the memory allocated at the passed address
-	 * @param address The address of the memory to free
-	 * @see sun.misc.Unsafe#freeMemory(long)
+	 * Allocates a chunk of memory and returns its address
+	 * @param size The number of bytes to allocate
+	 * @param alignmentOverhead The number of bytes allocated in excess of requested for alignment
+	 * @return The address of the allocated memory
+	 * @see sun.misc.Unsafe#allocateMemory(long)
 	 */
-	public static void freeMemory(long address) {
-		if(trackMem) {
-			synchronized(totalMemoryAllocated) {
-				long size = memoryAllocations.remove(address);				
-				totalMemoryAllocated.addAndGet(-1L * size);
-//				deallocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
-			}
-		}		
-		UNSAFE.freeMemory(address);
+	private static long _allocateMemory(long size, long alignmentOverhead) {
+		long address = UNSAFE.allocateMemory(size);
+		if(trackMem) {		
+			memoryAllocations.put(address, new long[]{size, alignmentOverhead});
+			totalMemoryAllocated.addAndGet(size);
+			totalAlignmentOverhead.addAndGet(alignmentOverhead);
+//				allocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
+		}
+		return address;
 	}
 	
 	/**
@@ -589,19 +614,100 @@ public class UnsafeAdapter {
 	 * @return The address of the new allocation
 	 * @see sun.misc.Unsafe#reallocateMemory(long, long)
 	 */
-	public static long reallocateMemory(long address, long bytes) {
-		long newAddress = UNSAFE.reallocateMemory(address, bytes);
+	public static long _reallocateMemory(long address, long size, long alignmentOverhead) {
+		long newAddress = UNSAFE.reallocateMemory(address, size);
 		if(trackMem) {
-			synchronized(totalMemoryAllocated) {
-				long size = memoryAllocations.remove(address);				
-				totalMemoryAllocated.addAndGet(-1L * size);
-				memoryAllocations.put(newAddress, bytes);
-				totalMemoryAllocated.addAndGet(bytes);
+			// ==========================================================
+			//  Subtract pervious allocation
+			// ==========================================================				
+			long[] alloc = memoryAllocations.remove(address);
+			if(alloc!=null) {
+				totalMemoryAllocated.addAndGet(-1L * alloc[0]);
+				totalAlignmentOverhead.addAndGet(-1L * alloc[1]);
+			}
+			// ==========================================================
+			//  Add new allocation
+			// ==========================================================								
+			memoryAllocations.put(newAddress, new long[]{size, alignmentOverhead});
+			totalMemoryAllocated.addAndGet(size);
+			totalAlignmentOverhead.addAndGet(alignmentOverhead);
 //				allocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
-			}			
 		}
 		return newAddress;
+
+	}
+
+	/**
+	 * Allocates a chunk of memory and returns its address
+	 * @param size The number of bytes to allocate
+	 * @return The address of the allocated memory
+	 * @see sun.misc.Unsafe#allocateMemory(long)
+	 */
+	public static long allocateMemory(long size) {
+		return _allocateMemory(size, 0);
+	}
+	
+	/**
+	 * Allocates a chunk of aligned (if enabled) memory and returns its address
+	 * @param size The number of bytes to allocate
+	 * @return The address of the allocated memory
+	 * @see sun.misc.Unsafe#allocateMemory(long)
+	 */
+	public static long allocateAlignedMemory(long size) {
+		if(alignMem && size <= MAX_ALIGNED_MEM) {
+			int actual = findNextPositivePowerOfTwo((int)size);
+			return _allocateMemory(actual, actual-size);
+		} 
+		return _allocateMemory(size, 0);
+	}
+	
+	
+	/**
+	 * Resizes a new block of native memory, to the given size in bytes. 
+	 * @param The address of the existing allocation
+	 * @param bytes The size of the new allocation i n bytes
+	 * @return The address of the new allocation
+	 * @see sun.misc.Unsafe#reallocateMemory(long, long)
+	 */
+	public static long reallocateMemory(long address, long bytes) {
+		return _reallocateMemory(address, bytes, 0);
 	}	
+	
+	/**
+	 * Resizes a new block of aligned (if enabled) native memory, to the given size in bytes. 
+	 * @param The address of the existing allocation
+	 * @param bytes The size of the new allocation i n bytes
+	 * @return The address of the new allocation
+	 * @see sun.misc.Unsafe#reallocateMemory(long, long)
+	 */
+	public static long reallocateAlignedMemory(long address, long size) {
+		if(alignMem && size <= MAX_ALIGNED_MEM) {
+			int actual = findNextPositivePowerOfTwo((int)size);
+			return _reallocateMemory(address, actual, actual-size);
+		} 
+		return _reallocateMemory(address, size, 0);
+	}	
+	
+	/**
+	 * Frees the memory allocated at the passed address
+	 * @param address The address of the memory to free
+	 * @see sun.misc.Unsafe#freeMemory(long)
+	 */
+	public static void freeMemory(long address) {
+		if(trackMem) {
+			// ==========================================================
+			//  Subtract pervious allocation
+			// ==========================================================				
+			long[] alloc = memoryAllocations.remove(address);
+			if(alloc!=null) {				
+				totalMemoryAllocated.addAndGet(-1L * alloc[0]);
+				totalAlignmentOverhead.addAndGet(-1L * alloc[1]);
+			}
+		}		
+		UNSAFE.freeMemory(address);
+	}
+	
+
 	
 
 	/**

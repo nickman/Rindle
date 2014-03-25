@@ -91,7 +91,7 @@ public class Constants {
 	/** The config property name for the initial number of slots to be allocated in a new container */
 	public static final String INIT_SLOTS_ALLOC = "helios.pag.raw.init";
 	/** The default initial number of slots to be allocated in a new container */
-	public static final int DEFAULT_INIT_SLOTS_ALLOC = 128;
+	public static final int DEFAULT_INIT_SLOTS_ALLOC = 100001;
 	/** The config property name for the number of slots to be added when a container resizes */
 	public static final String RESIZE_SLOTS_ALLOC = "helios.pag.raw.resize";
 	/** The default initial number of slots to be added when a container resizes */

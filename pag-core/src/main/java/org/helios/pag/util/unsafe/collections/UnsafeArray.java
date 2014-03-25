@@ -74,6 +74,7 @@ public abstract class UnsafeArray {
      * Allocates the sized memory block, incrementing the unmanaged counter
      * @param size The size of the memory to allocate in bytes
      * @return a pointer to the memory block allocated
+     * FIXME:  This class breaks when it uses aligned memory, or specifically, if the allocated size is not exactly what was reqested
      */
     protected static long allocateMemory(long size) {
     	return UnsafeAdapter.allocateMemory(size);

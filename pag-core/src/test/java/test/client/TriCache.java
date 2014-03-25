@@ -29,6 +29,7 @@ import java.nio.CharBuffer;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.helios.pag.util.unsafe.UnsafeAdapter;
 
 /**
  * <p>Title: TriCache</p>
@@ -58,5 +59,22 @@ public class TriCache {
 		tsuidToId = new ConcurrentHashMap<ByteBuffer, Long>();
 		nameToId = new ConcurrentHashMap<CharBuffer, Long>();
 	}
+	
+	static class A {
+		private static final Long l = 94L;
+	}
+	
+	static class B {
+		private static final long[] l = new long[]{94L};
+	}
+	
+	
+	public static void main(String[] args) {		
+		log("Long: ais:%s", UnsafeAdapter.arrayIndexScale(A.class));
+		log("long[]: ais:%s", UnsafeAdapter.arrayIndexScale(B.class));
+	}
 
+	public static void log(Object format, Object...args) {
+		System.out.println(String.format(format.toString(), args));
+	}
 }

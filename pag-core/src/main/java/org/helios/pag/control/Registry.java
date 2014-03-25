@@ -118,8 +118,10 @@ public class Registry implements RegistryMXBean {
 		}
 		reg.log.info(ipa);
 		ipa = null;
+		reg.log.info("\n\tWarmup Complete\n");
+		System.gc();
 		id++;
-		int testLoops = 10000;
+		int testLoops = 100000;
 //
 		reg.log.info("Starting Test");
 		reg.setRawDataEnabled(id, false, true);
@@ -139,9 +141,9 @@ public class Registry implements RegistryMXBean {
 		ElapsedTime et = SystemClock.startClock();
 		for(DataPoint dp: dps) {
 			
-			win.insert(dp.getLongValue());
+//			win.insert(dp.getLongValue());
 			ipa = reg.processDataPoint(dp);			
-			dal.add(dp.getLongValue());
+//			dal.add(dp.getLongValue());
 			//try { Thread.sleep(100); } catch (Exception x) {}			
 		}
 		String etMsg = et.printAvg("Samples", testLoops); 
@@ -152,11 +154,11 @@ public class Registry implements RegistryMXBean {
 				ipa.isRawEnabled() ? ipa.getMedian() :   -1,  
 				etMsg);
 		
-		final int dalSize = dal.size();
-		reg.log.info("DAL:{}\n\tMax:{}\n\tMin:{}", dalSize, Descriptive.max(dal), Descriptive.min(dal));
-		double variance = StatUtils.variance(dal.elements());
-		double stddev = Math.sqrt(variance);
-		reg.log.info("Variance: {}  StdDev: {}", variance, stddev);
+//		final int dalSize = dal.size();
+//		reg.log.info("DAL:{}\n\tMax:{}\n\tMin:{}", dalSize, Descriptive.max(dal), Descriptive.min(dal));
+//		double variance = StatUtils.variance(dal.elements());
+//		double stddev = Math.sqrt(variance);
+//		reg.log.info("Variance: {}  StdDev: {}", variance, stddev);
 //		reg.log.info("Colt gm: {}", Descriptive.geometricMean(dal));
 //		reg.log.info("Colt hm: {}", Descriptive.harmonicMean(dalSize, Descriptive.sumOfInversions(dal, 0, dalSize -1)));
 //		reg.log.info("Colt mean: {}", Descriptive.mean(dal));
@@ -174,10 +176,13 @@ public class Registry implements RegistryMXBean {
 //		ipa = null;
 //		//reg.aggregators.clear();
 		reg.log.info("\nMEM STATS\n{}", UnsafeAdapter.printUnsafeMemoryStats());
-		reg.aggregators.clear();
-		System.runFinalization();
-		System.gc();
 		reg.log.info(ipa);
+		ipa = null;
+		win = null;
+		reg.aggregators.clear();
+		System.gc();
+		System.runFinalization();		
+		
 		try { Thread.sleep(3000); } catch (Exception x) {}
 		reg.log.info("\nMEM STATS\n{}", UnsafeAdapter.printUnsafeMemoryStats());
 	}
