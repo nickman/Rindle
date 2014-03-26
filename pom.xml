@@ -21,6 +21,7 @@
  		<!-- Dependencies -->
  		<junit.version>4.11</junit.version>
  		<trove.version>3.0.2</trove.version>
+ 		<netty.version>3.6.2.Final</netty.version>
 		<opentsdb.version>2.0.0</opentsdb.version>
 		<async.version>1.4.0</async.version>
 		<jackson-annotations.version>2.1.4</jackson-annotations.version>
@@ -79,6 +80,18 @@
 		    <version>${junit.version}</version>
 		    <scope>test</scope>
 		</dependency>
+
+      <!--
+	========================================
+	Netty Artifacts
+	========================================
+	-->
+
+	<dependency>
+	  <groupId>io.netty</groupId>
+	  <artifactId>netty</artifactId>
+	  <version>${netty.version}</version>
+	</dependency>		
 		
       <!--
 	========================================

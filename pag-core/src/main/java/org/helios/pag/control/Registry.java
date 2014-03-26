@@ -75,6 +75,8 @@ public class Registry implements RegistryMXBean {
 	/** The map of aggregators keyed by the global metric ID */
 	protected final NonBlockingHashMapLong<PeriodAggregatorImpl> aggregators;
 	
+	/** The flush scheduler */
+	protected final FlushScheduler flushScheduler = FlushScheduler.getInstance();
 	
 	/** The registry's JMX ObjectName */
 	public static final ObjectName OBJECT_NAME = JMXHelper.objectName(new StringBuilder(Registry.class.getPackage().getName()).append(":service=").append(Registry.class.getSimpleName()));

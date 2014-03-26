@@ -80,6 +80,10 @@ public class Constants {
 	public static final String PERIOD_MAX = "helios.pag.period.max";
 	/** The default maximum period */
 	public static final int DEFAULT_PERIOD_MAX = 300;
+	/** The config property name for the period timer's tick size */
+	public static final String PERIOD_TIMER_TICK_SIZE = "helios.pag.period.ticksize";
+	/** The default maximum period */
+	public static final int DEFAULT_PERIOD_TIMER_TICK_SIZE = 512;
 
 	// ===========================================================================================	
 	//		Raw Container Config
