@@ -25,50 +25,30 @@
 package org.helios.pag.control;
 
 /**
- * <p>Title: FlushPeriodListenerImpl</p>
- * <p>Description: An empty, concrete and configurable flush period listener implementation</p> 
+ * <p>Title: IFlushPeriodListener</p>
+ * <p>Description: Defines a listener that is notified of flush events</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.control.FlushPeriodListenerImpl</code></p>
+ * <p><code>org.helios.pag.control.IFlushPeriodListener</code></p>
  */
 
-public class FlushPeriodListenerImpl implements IFlushPeriodListener {
-	/** The periods to subscribe to */
-	protected int[] periods;
+public interface IFlushPeriodListener {
+	/**
+	 * Callback from the FlushScheduler on a period timer event
+	 * @param period The period that fired in seconds
+	 */
+	public void onPeriodFlush(int period);
 	
 	/**
-	 * Creates a new FlushPeriodListenerImpl
-	 * @param periods The periods to subscribe to
+	 * Returns the periods that the listener is interested in.
+	 * If the returned array is a single value of <b>-1</b>, it will subscribe all periods.
+	 * @return the periods to notify this listener on
 	 */
-	public FlushPeriodListenerImpl(int...periods) {
-		this.periods = periods;
-	}
+	public int[] getPeriods();
 	
 	/**
-	 * {@inheritDoc}
-	 * @see org.helios.pag.control.IFlushPeriodListener#setAdjustedPeriods(int[])
+	 * Callback from the timer passing the adjusted periods that the timer converted this listeners interest periods
+	 * @param adjustedPeriods The periods for which the listener was subscribed 
 	 */
-	public void setAdjustedPeriods(int[] adjustedPeriods) {
-		periods = adjustedPeriods;
-	}
-	
-
-	/**
-	 * {@inheritDoc}
-	 * @see org.helios.pag.control.IFlushPeriodListener#onPeriodFlush(int)
-	 */
-	@Override
-	public void onPeriodFlush(int period) {
-		/* No Op */
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see org.helios.pag.control.IFlushPeriodListener#getPeriods()
-	 */
-	@Override
-	public int[] getPeriods() {
-		return periods;
-	}
-
+	public void setAdjustedPeriods(int[] adjustedPeriods);
 }

@@ -64,6 +64,9 @@ public class UnsafeAdapter {
     public final static int LONG_SIZE = 8;    
     /** The size of a <b><code>long[]</code></b> array offset */
     public final static int LONG_ARRAY_OFFSET;
+    /** The size of a <b><code>double</code></b>  */
+    public final static int DOUBLE_SIZE = 8;    
+    
     /** The size of a <b><code>double[]</code></b> array offset */
     public final static int DOUBLE_ARRAY_OFFSET;
     

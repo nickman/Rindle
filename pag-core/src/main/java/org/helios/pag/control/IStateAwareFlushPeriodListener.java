@@ -25,14 +25,14 @@
 package org.helios.pag.control;
 
 /**
- * <p>Title: StateAwareFlushPeriodListener</p>
- * <p>Description: An extended {@link FlushPeriodListener} that is notified of period activations and deactivations.</p> 
+ * <p>Title: IStateAwareFlushPeriodListener</p>
+ * <p>Description: An extended {@link IFlushPeriodListener} that is notified of period activations and deactivations.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.control.StateAwareFlushPeriodListener</code></p>
+ * <p><code>org.helios.pag.control.IStateAwareFlushPeriodListener</code></p>
  */
 
-public interface StateAwareFlushPeriodListener extends FlushPeriodListener {
+public interface IStateAwareFlushPeriodListener extends IFlushPeriodListener {
 	/**
 	 * Fired when a period is activated
 	 * @param period the activated period

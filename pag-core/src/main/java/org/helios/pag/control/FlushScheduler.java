@@ -85,9 +85,9 @@ public class FlushScheduler implements ThreadFactory, UncaughtExceptionHandler {
 	/** A map of the number of aggregators with subscribers of a period, keyed by the period */
 	protected final NonBlockingHashMapLong<AtomicInteger> activePeriods;
 	/** A set of flush listeners to be notified on period events keyed by the period */ 
-	protected final NonBlockingHashMapLong<NonBlockingHashSet<FlushPeriodListener>> listeners;
+	protected final NonBlockingHashMapLong<NonBlockingHashSet<IFlushPeriodListener>> listeners;
 	/** A set of state aware flush listeners to be notified on period events keyed by the period */ 
-	protected final NonBlockingHashMapLong<NonBlockingHashSet<StateAwareFlushPeriodListener>> stateAwareListeners;
+	protected final NonBlockingHashMapLong<NonBlockingHashSet<IStateAwareFlushPeriodListener>> stateAwareListeners;
 	
 	/** An executor to handle firing listener callbacks against registered listeners */
 	protected final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
@@ -132,15 +132,15 @@ public class FlushScheduler implements ThreadFactory, UncaughtExceptionHandler {
 		try { ((ThreadPoolExecutor)threadPool).prestartCoreThread(); } catch (Exception x) {/* No Op */}
 		activePeriods = new NonBlockingHashMapLong<AtomicInteger>(maxPeriodCount, true);
 		timerTasks = new NonBlockingHashMapLong<TimerTask>(maxPeriodCount, true);
-		listeners = new NonBlockingHashMapLong<NonBlockingHashSet<FlushPeriodListener>>(maxPeriodCount, false);
-		stateAwareListeners = new NonBlockingHashMapLong<NonBlockingHashSet<StateAwareFlushPeriodListener>>(maxPeriodCount, false);
+		listeners = new NonBlockingHashMapLong<NonBlockingHashSet<IFlushPeriodListener>>(maxPeriodCount, false);
+		stateAwareListeners = new NonBlockingHashMapLong<NonBlockingHashSet<IStateAwareFlushPeriodListener>>(maxPeriodCount, false);
 		distinctPeriods = new int[maxPeriodCount];
 		int _dpx = 0;
 		for(int x = minTick; x <= maxPeriod; x += minTick) {
 			activePeriods.put(x, new AtomicInteger(0));
 			timerTasks.put(x, newPeriodTimerTask(x));
-			listeners.put(x, new NonBlockingHashSet<FlushPeriodListener>());
-			stateAwareListeners.put(x, new NonBlockingHashSet<StateAwareFlushPeriodListener>());
+			listeners.put(x, new NonBlockingHashSet<IFlushPeriodListener>());
+			stateAwareListeners.put(x, new NonBlockingHashSet<IStateAwareFlushPeriodListener>());
 			distinctPeriods[_dpx] = x;
 			_dpx++;
 		}
@@ -155,20 +155,21 @@ public class FlushScheduler implements ThreadFactory, UncaughtExceptionHandler {
 	 * @param listener The listener to register
 	 * @return An array of the adjusted periods the listener was subscribed to
 	 */
-	public int[] registerListener(FlushPeriodListener listener) {
+	public int[] registerListener(IFlushPeriodListener listener) {
 		if(listener!=null) {
-			final StateAwareFlushPeriodListener stateAware = (listener instanceof StateAwareFlushPeriodListener) ? (StateAwareFlushPeriodListener)listener : null;
+			final IStateAwareFlushPeriodListener stateAware = (listener instanceof IStateAwareFlushPeriodListener) ? (IStateAwareFlushPeriodListener)listener : null;
 			int[] periods = listener.getPeriods();
 			if(periods.length==0) return EMPTY_INT_ARR;
 			if(periods.length==1 && periods[0]==-1) {
-				for(NonBlockingHashSet<FlushPeriodListener> set: listeners.values()) {
+				for(NonBlockingHashSet<IFlushPeriodListener> set: listeners.values()) {
 					set.add(listener);					
 				}
 				if(stateAware!=null) {
-					for(NonBlockingHashSet<StateAwareFlushPeriodListener> set: stateAwareListeners.values()) {
+					for(NonBlockingHashSet<IStateAwareFlushPeriodListener> set: stateAwareListeners.values()) {
 						set.add(stateAware);					
 					}					
 				}
+				listener.setAdjustedPeriods(distinctPeriods);
 				return distinctPeriods;
 			}
 			TIntHashSet adjustedPeriods = new TIntHashSet();
@@ -178,6 +179,7 @@ public class FlushScheduler implements ThreadFactory, UncaughtExceptionHandler {
 			int[] finalPeriods = adjustedPeriods.toArray();
 			for(int p: finalPeriods) {
 				listeners.get(p).add(listener);
+				listener.setAdjustedPeriods(finalPeriods);
 			}
 			if(stateAware!=null) {
 				for(int p: finalPeriods) {
@@ -193,14 +195,14 @@ public class FlushScheduler implements ThreadFactory, UncaughtExceptionHandler {
 	 * Removes a listener from all subscribed periods
 	 * @param listener The listener to remove
 	 */
-	public void removeListener(FlushPeriodListener listener) {
+	public void removeListener(IFlushPeriodListener listener) {
 		if(listener!=null) {
-			final StateAwareFlushPeriodListener stateAware = (listener instanceof StateAwareFlushPeriodListener) ? (StateAwareFlushPeriodListener)listener : null;
-			for(NonBlockingHashSet<FlushPeriodListener> set: listeners.values()) {
+			final IStateAwareFlushPeriodListener stateAware = (listener instanceof IStateAwareFlushPeriodListener) ? (IStateAwareFlushPeriodListener)listener : null;
+			for(NonBlockingHashSet<IFlushPeriodListener> set: listeners.values()) {
 				set.remove(listener);
 			}
 			if(stateAware!=null) {
-				for(NonBlockingHashSet<StateAwareFlushPeriodListener> set: stateAwareListeners.values()) {
+				for(NonBlockingHashSet<IStateAwareFlushPeriodListener> set: stateAwareListeners.values()) {
 					set.remove(stateAware);
 				}				
 			}
@@ -212,9 +214,9 @@ public class FlushScheduler implements ThreadFactory, UncaughtExceptionHandler {
 	 * @param listener The listener to remove
 	 * @param periods The periods to remove the passed listener from
 	 */
-	public void removeListener(FlushPeriodListener listener, int...periods) {
+	public void removeListener(IFlushPeriodListener listener, int...periods) {
 		if(listener!=null && periods!=null && periods.length>0) {
-			final StateAwareFlushPeriodListener stateAware = (listener instanceof StateAwareFlushPeriodListener) ? (StateAwareFlushPeriodListener)listener : null;
+			final IStateAwareFlushPeriodListener stateAware = (listener instanceof IStateAwareFlushPeriodListener) ? (IStateAwareFlushPeriodListener)listener : null;
 			TIntHashSet adjustedPeriods = new TIntHashSet();
 			for(int p : periods) {
 				adjustedPeriods.add(adjustPeriod(p));
@@ -244,7 +246,7 @@ public class FlushScheduler implements ThreadFactory, UncaughtExceptionHandler {
 					log.debug("Re-scheduled period timer for period {}", period);
 					threadPool.execute(new Runnable() {
 						public void run() {
-							for(FlushPeriodListener listener: listeners.get(period)) {
+							for(IFlushPeriodListener listener: listeners.get(period)) {
 								listener.onPeriodFlush(period);
 							}							
 						}
@@ -254,7 +256,7 @@ public class FlushScheduler implements ThreadFactory, UncaughtExceptionHandler {
 					timeout.cancel();
 					threadPool.execute(new Runnable() {
 						public void run() {
-							for(StateAwareFlushPeriodListener listener: stateAwareListeners.get(period)) {
+							for(IStateAwareFlushPeriodListener listener: stateAwareListeners.get(period)) {
 								listener.onPeriodDeactivate(period);
 							}
 						}
@@ -296,7 +298,7 @@ public class FlushScheduler implements ThreadFactory, UncaughtExceptionHandler {
 			timer.newTimeout(timerTasks.get(_period), _period, TimeUnit.SECONDS);
 			threadPool.execute(new Runnable() {
 				public void run() {
-					for(StateAwareFlushPeriodListener listener: stateAwareListeners.get(_period)) {
+					for(IStateAwareFlushPeriodListener listener: stateAwareListeners.get(_period)) {
 						listener.onPeriodActivate(_period);
 					}
 				}

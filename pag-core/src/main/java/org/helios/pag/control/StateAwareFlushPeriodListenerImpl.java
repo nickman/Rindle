@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2007, Helios Development Group and individual contributors
+ * Copyright 2014, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -25,24 +25,39 @@
 package org.helios.pag.control;
 
 /**
- * <p>Title: FlushPeriodListener</p>
- * <p>Description: Defines a listener that is notified of flush events</p> 
+ * <p>Title: StateAwareFlushPeriodListenerImpl</p>
+ * <p>Description: An empty, concrete and configurable state aware flush period listener implementation</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.control.FlushPeriodListener</code></p>
+ * <p><code>org.helios.pag.control.StateAwareFlushPeriodListenerImpl</code></p>
  */
 
-public interface FlushPeriodListener {
+public class StateAwareFlushPeriodListenerImpl extends FlushPeriodListenerImpl implements IStateAwareFlushPeriodListener {
+
 	/**
-	 * Callback from the FlushScheduler on a period timer event
-	 * @param period The period that fired in seconds
+	 * Creates a new StateAwareFlushPeriodListenerImpl
+	 * @param periods
 	 */
-	public void onPeriodFlush(int period);
-	
+	public StateAwareFlushPeriodListenerImpl(int... periods) {
+		super(periods);
+	}
+
 	/**
-	 * Returns the periods that the listener is interested in.
-	 * If the returned array is a single value of <b>-1</b>, it will subscribe all periods.
-	 * @return the periods to notify this listener on
+	 * {@inheritDoc}
+	 * @see org.helios.pag.control.IStateAwareFlushPeriodListener#onPeriodActivate(int)
 	 */
-	public int[] getPeriods();
+	@Override
+	public void onPeriodActivate(int period) {
+		/* No Op */
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.control.IStateAwareFlushPeriodListener#onPeriodDeactivate(int)
+	 */
+	@Override
+	public void onPeriodDeactivate(int period) {
+		/* No Op */		
+	}
+
 }
