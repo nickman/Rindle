@@ -24,17 +24,21 @@
  */
 package org.helios.pag.period.impl;
 
+import java.util.Date;
+
 import org.helios.pag.util.unsafe.UnsafeAdapter;
+import org.helios.pag.util.unsafe.UnsafeAdapter.DoubleCallable;
+import org.helios.pag.util.unsafe.UnsafeAdapter.LongCallable;
 
 /**
- * <p>Title: ConcurrentEWMA</p>
- * <p>Description: </p> 
+ * <p>Title: ConcurrentDirectEWMA</p>
+ * <p>Description: A thread safe version of {@link DirectEWMA} which is safe to be accessed by concurrent threads at the small cost of a spin lock on each access.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.period.impl.ConcurrentEWMA</code></p>
+ * <p><code>org.helios.pag.period.impl.ConcurrentDirectEWMA</code></p>
  */
 
-public class ConcurrentEWMA extends DirectEWMA {
+public class ConcurrentDirectEWMA extends DirectEWMA {
 
 	/** The offset of the spin lock */
 	public final static byte XLOCK = AVERAGE + UnsafeAdapter.LONG_SIZE;
@@ -42,10 +46,10 @@ public class ConcurrentEWMA extends DirectEWMA {
 	public final static byte CTOTAL = XLOCK + UnsafeAdapter.DOUBLE_SIZE;
 
 	/**
-	 * Creates a new ConcurrentEWMA
-	 * @param windowSize
+	 * Creates a new ConcurrentDirectEWMA
+	 * @param windowSize The length of the sliding window in ms.
 	 */
-	public ConcurrentEWMA(long windowSize) {
+	public ConcurrentDirectEWMA(long windowSize) {
 		super(windowSize, CTOTAL);
 		UnsafeAdapter.putLong(address + XLOCK, UnsafeAdapter.NO_LOCK);
 	}
@@ -55,7 +59,12 @@ public class ConcurrentEWMA extends DirectEWMA {
 	 * @return the timestamp of the last sample 
 	 */
 	public long getLastSample() {
-		)
+		return UnsafeAdapter.runInLock(address + XLOCK,  new LongCallable() {
+			@Override
+			public long longCall() {
+				return UnsafeAdapter.getLong(address + LAST_SAMPLE);
+			}
+		});
 	}
 	
 	/**
@@ -63,15 +72,30 @@ public class ConcurrentEWMA extends DirectEWMA {
 	 * @return the last computed average 
 	 */
 	public double getAverage() {
-		return UnsafeAdapter.getDouble(address + AVERAGE);
+		return UnsafeAdapter.runInLock(address + XLOCK,  new DoubleCallable() {
+			@Override
+			public double doubleCall() {
+				return UnsafeAdapter.getDouble(address + AVERAGE);
+			}
+		});
 	}
 	
 	/**
-	 * Returns the window size in ms.
-	 * @return the window size  
+	 * {@inheritDoc}
+	 * @see java.lang.Object#toString()
 	 */
-	public long getWindow() {
-		return UnsafeAdapter.getLong(address + WINDOW);
+	@Override
+	public String toString() {
+		final StringBuilder b = new StringBuilder("EWMA [");
+		UnsafeAdapter.runInLock(address + XLOCK, new Runnable() {
+			public void run() {
+				b.append("ts:").append(new Date(UnsafeAdapter.getLong(address + LAST_SAMPLE)));
+				b.append(", avg:").append(UnsafeAdapter.getDouble(address + AVERAGE));				
+			}
+		});
+		b.append("]");		
+		return b.append("]").toString();
 	}
+	
 	
 }

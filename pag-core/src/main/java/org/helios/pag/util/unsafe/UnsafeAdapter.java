@@ -1877,6 +1877,170 @@ public class UnsafeAdapter {
 			if(locked) xunlock(address);
 		}
 	}
+	
+	/**
+	 * Executes the passed task after acquiring the exclusive lock the given address.
+	 * On completion, the lock is released if it was acquired in this call.
+	 * If the lock was already held when on entry, the lock is left in place.
+	 * @param address The address of the lock
+	 * @param task The task to execute 
+	 * @return the return value of the task
+	 */
+	public static double runInLock(final long address, final DoubleCallable task) {
+		final boolean locked = xlock(address);
+		try {			
+			return task.doubleCall();
+		} finally {
+			if(locked) xunlock(address);
+		}
+	}
+	
+	/**
+	 * Executes the passed task after acquiring the exclusive lock the given address.
+	 * On completion, the lock is released if it was acquired in this call.
+	 * If the lock was already held when on entry, the lock is left in place.
+	 * @param address The address of the lock
+	 * @param task The task to execute 
+	 * @return the return value of the task
+	 */
+	public static long runInLock(final long address, final LongCallable task) {
+		final boolean locked = xlock(address);
+		try {			
+			return task.longCall();
+		} finally {
+			if(locked) xunlock(address);
+		}
+	}
+	
+	/**
+	 * Executes the passed task after acquiring the exclusive lock the given address.
+	 * On completion, the lock is released if it was acquired in this call.
+	 * If the lock was already held when on entry, the lock is left in place.
+	 * @param address The address of the lock
+	 * @param task The task to execute 
+	 * @return the return value of the task
+	 */
+	public static int runInLock(final long address, final IntCallable task) {
+		final boolean locked = xlock(address);
+		try {			
+			return task.intCall();
+		} finally {
+			if(locked) xunlock(address);
+		}
+	}
+	
+	/**
+	 * Executes the passed task after acquiring the exclusive lock the given address.
+	 * On completion, the lock is released if it was acquired in this call.
+	 * If the lock was already held when on entry, the lock is left in place.
+	 * @param address The address of the lock
+	 * @param task The task to execute 
+	 * @return the return value of the task
+	 */
+	public static boolean runInLock(final long address, final BooleanCallable task) {
+		final boolean locked = xlock(address);
+		try {			
+			return task.booleanCall();
+		} finally {
+			if(locked) xunlock(address);
+		}
+	}
+	
+	/**
+	 * Executes the passed task after acquiring the exclusive lock the given address.
+	 * On completion, the lock is released if it was acquired in this call.
+	 * If the lock was already held when on entry, the lock is left in place.
+	 * @param address The address of the lock
+	 * @param task The task to execute 
+	 * @return the return value of the task
+	 */
+	public static byte runInLock(final long address, final ByteCallable task) {
+		final boolean locked = xlock(address);
+		try {			
+			return task.byteCall();
+		} finally {
+			if(locked) xunlock(address);
+		}
+	}
+	
+	
+	/**
+	 * <p>Title: LongCallable</p>
+	 * <p>Description: The equivalent of a {@link Callable} but for a primitive long to avoid AutoBoxing</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>org.helios.pag.util.unsafe.UnsafeAdapter.LongCallable</code></p>
+	 */
+	public interface LongCallable {
+		    /**
+		     * Computes a result, or throws an exception if unable to do so.
+		     * @return computed result
+		     */
+		    long longCall();
+	}
+	
+	
+	/**
+	 * <p>Title: DoubleCallable</p>
+	 * <p>Description: The equivalent of a {@link Callable} but for a primitive double to avoid AutoBoxing</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>org.helios.pag.util.unsafe.UnsafeAdapter.DoubleCallable</code></p>
+	 */
+	public interface DoubleCallable {
+		    /**
+		     * Computes a result, or throws an exception if unable to do so.
+		     * @return computed result
+		     */
+		    double doubleCall();
+	}
+	
+	/**
+	 * <p>Title: IntCallable</p>
+	 * <p>Description: The equivalent of a {@link Callable} but for a primitive int to avoid AutoBoxing</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>org.helios.pag.util.unsafe.UnsafeAdapter.IntCallable</code></p>
+	 */
+	public interface IntCallable {
+		    /**
+		     * Computes a result, or throws an exception if unable to do so.
+		     * @return computed result
+		     */
+		    int intCall();
+	}
+	
+	/**
+	 * <p>Title: ByteCallable</p>
+	 * <p>Description: The equivalent of a {@link Callable} but for a primitive byte to avoid AutoBoxing</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>org.helios.pag.util.unsafe.UnsafeAdapter.ByteCallable</code></p>
+	 */
+	public interface ByteCallable {
+		    /**
+		     * Computes a result, or throws an exception if unable to do so.
+		     * @return computed result
+		     */
+		    byte byteCall();
+	}
+	
+	/**
+	 * <p>Title: BooleanCallable</p>
+	 * <p>Description: The equivalent of a {@link Callable} but for a primitive boolean to avoid AutoBoxing</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>org.helios.pag.util.unsafe.UnsafeAdapter.BooleanCallable</code></p>
+	 */
+	public interface BooleanCallable {
+		    /**
+		     * Computes a result, or throws an exception if unable to do so.
+		     * @return computed result
+		     */
+		    boolean booleanCall();
+	}
+	
+	
     
 	/**
 	 * Executes the passed tasks after acquiring the exclusive lock the given address.
@@ -1897,9 +2061,4 @@ public class UnsafeAdapter {
 		}
 	}
 	
-	private static class UnsafeLock {
-		private final long address = allocateMemory(LONG_SIZE);
-		private Thread holder;
-	}
-
 }

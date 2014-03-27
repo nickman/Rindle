@@ -24,9 +24,8 @@
  */
 package org.helios.pag;
 
+import java.io.File;
 import java.lang.management.ManagementFactory;
-
-import org.helios.pag.util.unsafe.UnsafeAdapter;
 
 import com.lmax.disruptor.SleepingWaitStrategy;
 import com.stumbleupon.async.Deferred;
@@ -100,7 +99,19 @@ public class Constants {
 	public static final String RESIZE_SLOTS_ALLOC = "helios.pag.raw.resize";
 	/** The default initial number of slots to be added when a container resizes */
 	public static final int DEFAULT_RESIZE_SLOTS_ALLOC = 128;
-	
+
+	// ===========================================================================================	
+	//		Chronicle Store Config
+	// ===========================================================================================	
+	/** The config property name to specify the chronicle data directory */
+	public static final String CHRONICLE_DIR = "helios.pag.store.chronicle.dir";
+	/** The default chronicle data directory */
+	public static final String DEFAULT_CHRONICLE_DIR =  String.format("%s%srindle%s%sstore", System.getProperty("java.io.tmpdir"), File.separator, File.separator, File.separator);
+
+	/** The config property name to specify if chronicle should use unsafe excerpts */
+	public static final String CHRONICLE_UNSAFE_PROP = "helios.pag.store.chronicle.unsafe";
+    /** The default chronicle unsafe excerpt setting */
+    public static final boolean DEFAULT_CHRONICLE_UNSAFE = false;
 	
 	
 	

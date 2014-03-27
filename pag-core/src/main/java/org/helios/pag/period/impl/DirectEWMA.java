@@ -24,6 +24,8 @@
  */
 package org.helios.pag.period.impl;
 
+import java.util.Date;
+
 import org.helios.pag.util.unsafe.DeAllocateMe;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 
@@ -110,6 +112,19 @@ public class DirectEWMA implements DeAllocateMe {
 			UnsafeAdapter.putDouble(address + AVERAGE, (1.0 - coeff) * sample + coeff * getAverage());
 			UnsafeAdapter.putLong(address + LAST_SAMPLE, now);
 		}
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#toString()
+	 */
+	@Override
+	public String toString() {
+		StringBuilder b = new StringBuilder("EWMA [");
+		b.append("ts:").append(new Date(getLastSample()));
+		b.append(", avg:").append(getAverage());
+		b.append("]");		
+		return b.append("]").toString();
 	}
 
 	/**
