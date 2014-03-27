@@ -4,12 +4,11 @@
 package org.helios.pag.util.unsafe;
 
 
-import gnu.trove.map.hash.TLongLongHashMap;
-
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.ByteOrder;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,6 +26,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.pag.Constants;
 import org.helios.pag.util.JMXHelper;
 import org.helios.pag.util.StringHelper;
+import org.helios.pag.util.unsafe.collections.LongSlidingWindow;
 
 import sun.misc.Unsafe;
 
@@ -55,6 +55,8 @@ public class UnsafeAdapter {
     public static final boolean FOUR_SET;
     /** The size of a <b><code>byte</code></b>  */
     public final static int BYTE_SIZE = 1;
+    /** The size of a <b><code>char</code></b>  */
+    public final static int CHAR_SIZE = 2;
 
     /** The size of an <b><code>int</code></b>  */
     public final static int INT_SIZE = 4;
@@ -72,11 +74,24 @@ public class UnsafeAdapter {
     
     /** The size of a <b><code>byte[]</code></b> array offset */
     public final static int BYTE_ARRAY_OFFSET;
+    /** The size of a <b><code>char[]</code></b> array offset */
+    public final static int CHAR_ARRAY_OFFSET;
     
     
     /** The maximum size of a memory allocation request which can be aligned */
     public static final long MAX_ALIGNED_MEM = 1073741824;   // 1,073,741,824
     
+    
+    
+    //==================================================================================================
+    //		String internals
+    //==================================================================================================
+    /** The offset of the char array in a String */
+    public static final long STRING_CHARS_OFFSET;
+    /** The offset of the char array in a String */
+    public static final long STRING_ARR_OFFSET;
+    /** The offset of the char array in a String */
+    public static final long STRING_COUNT_OFFSET;
 	
 	/** The configured native memory tracking enablement  */
 	public static final boolean trackMem;
@@ -464,6 +479,12 @@ public class UnsafeAdapter {
             LONG_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(long[].class);
             DOUBLE_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(double[].class);
             BYTE_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
+            CHAR_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(char[].class);
+            
+            STRING_CHARS_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("value"));
+            STRING_ARR_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("offset"));
+            STRING_COUNT_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("count"));
+            
             int copyMemCount = 0;
             int setMemCount = 0;
 //            log("\n\t=======================================================\n\tUnsafe Method Analysis\n\t=======================================================");
@@ -1002,6 +1023,19 @@ public class UnsafeAdapter {
 	public static char getChar(Object arg0, long arg1) {
 		return UNSAFE.getChar(arg0, arg1);
 	}
+	
+	/**
+	 * Reads a series of chars starting at the passed address and returns them as an array
+	 * @param address The address to read from
+	 * @param size The number of chars to read
+	 * @return the read chars as an array
+	 */
+	public static char[] getCharArray(long address, int size) {
+		char[] arr = new char[size];
+		copyMemory(null, address, arr, CHAR_ARRAY_OFFSET, CHAR_SIZE * size);
+		return arr;
+	}	
+	
 
 	/**
 	 * @param arg0
@@ -1095,33 +1129,36 @@ public class UnsafeAdapter {
 	}
 
 	/**
-	 * @param arg0
-	 * @return
+	 * Returns the int value at the specified address
+	 * @param address The address of the int to read
+	 * @return the read int
 	 * @see sun.misc.Unsafe#getInt(long)
 	 */
-	public static int getInt(long arg0) {
-		return UNSAFE.getInt(arg0);
+	public static int getInt(long address) {
+		return UNSAFE.getInt(address);
 	}
 
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @return
+	 * Returns the int value at the specified offset of a non-null object, or the absolute address where the object is null.
+	 * @param o The object from which to read the value, or null if the address is absolute 
+	 * @param address The address of the int to read
+	 * @return the read value
 	 * @deprecated
 	 * @see sun.misc.Unsafe#getInt(java.lang.Object, int)
 	 */
-	public static int getInt(Object arg0, int arg1) {
-		return UNSAFE.getInt(arg0, arg1);
+	public static int getInt(Object o, int address) {
+		return UNSAFE.getInt(o, address);
 	}
 
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @return
+	 * Returns the int value at the specified offset of a non-null object, or the absolute address where the object is null.
+	 * @param o The object from which to read the value, or null if the address is absolute 
+	 * @param address The address of the int to read
+	 * @return the read value
 	 * @see sun.misc.Unsafe#getInt(java.lang.Object, long)
 	 */
-	public static int getInt(Object arg0, long arg1) {
-		return UNSAFE.getInt(arg0, arg1);
+	public static int getInt(Object o, long address) {
+		return UNSAFE.getInt(o, address);
 	}
 
 	/**
@@ -1153,6 +1190,19 @@ public class UnsafeAdapter {
 	public static long getLong(long address) {
 		return UNSAFE.getLong(address);
 	}
+	
+	/**
+	 * Reads a series of bytes starting at the passed address and returns them as an array
+	 * @param address The address to read from
+	 * @param size The number of bytes to read
+	 * @return the read bytes as an array
+	 */
+	public static byte[] getByteArray(long address, int size) {
+		byte[] arr = new byte[size];
+		copyMemory(null, address, arr, BYTE_ARRAY_OFFSET, size);
+		return arr;
+	}
+	
 	
 	/**
 	 * Reads a series of longs starting at the passed address and returns them as an array
@@ -1830,7 +1880,17 @@ public class UnsafeAdapter {
 	/** The spin lock value for no lock */
 	public static final long NO_LOCK = -1L;
 	/** The spin lock value for a shared/read lock */
-	public static final long SHARED_LOCK = -2L; 
+	public static final long SHARED_LOCK = -2L;
+	
+	/**
+	 * Allocates an initialized and initially unlocked spin lock
+	 * @return the address of the spin lock
+	 */
+	public static long allocateSpinLock() {
+		long address = allocateAlignedMemory(UnsafeAdapter.LONG_SIZE);
+		putLong(address, NO_LOCK);
+		return address;
+	}
 	
 	/**
 	 * Acquires the lock at the passed address exclusively
@@ -2060,5 +2120,204 @@ public class UnsafeAdapter {
 			if(locked) xunlock(address);
 		}
 	}
+	
+	/** Indicates if this platform is Little Endian */
+	public static final boolean littleEndian = ByteOrder.nativeOrder().equals(ByteOrder.LITTLE_ENDIAN);
+	/** Indicates if this platform is Big Endian */
+	public static final boolean bigEndian = !littleEndian;
+	
+	 /** A mask to bit switch a byte to an int */
+	private static final int UNSIGNED_MASK = 0xFF;
+	
+
+    /**
+     * Returns true if x1 is less than x2, when both values are treated as unsigned.
+     * @author Modified from ASF Cassandra's <a href="https://svn.apache.org/repos/asf/cassandra/trunk/src/java/org/apache/cassandra/utils/FastByteComparisons.java">FastByteComparisons</a>
+     */
+    static boolean lessThanUnsigned(long x1, long x2) {
+      return (x1 + Long.MIN_VALUE) < (x2 + Long.MIN_VALUE);
+    }	
+    
+    /**
+     * Returns the value of the given byte as an integer, when treated as
+     * unsigned. That is, returns {@code value + 256} if {@code value} is
+     * negative; {@code value} itself otherwise.
+     * @author From Google Guava's <a href="https://chromium.googlesource.com/external/guava-libraries/+/release14/guava/src/com/google/common/primitives/UnsignedBytes.java">UnsignedBytes</a>.
+     */
+    public static int toInt(byte value) {
+      return value & UNSIGNED_MASK;
+    }    
+
+    /**
+     * Compares the two specified {@code byte} values, treating them as unsigned
+     * values between 0 and 255 inclusive. For example, {@code (byte) -127} is
+     * considered greater than {@code (byte) 127} because it is seen as having
+     * the value of positive {@code 129}.
+     *
+     * @param a the first {@code byte} to compare
+     * @param b the second {@code byte} to compare
+     * @return a negative value if {@code a} is less than {@code b}; a positive
+     *     value if {@code a} is greater than {@code b}; or zero if they are equal
+     * @author From Google Guava's <a href="https://chromium.googlesource.com/external/guava-libraries/+/release14/guava/src/com/google/common/primitives/UnsignedBytes.java">UnsignedBytes</a>.
+     */
+    public static int compare(byte a, byte b) {
+      return toInt(a) - toInt(b);
+    }
+    
+	
+    /**
+     * Lexicographically compare two arrays.
+     * @param buffer1 left operand
+     * @param offset1 Where to start comparing in the left buffer
+     * @param length1 How much to compare from the left buffer
+	 * @param buffer2 right operand
+     * @param offset2 Where to start comparing in the right buffer
+     * @param length2 How much to compare from the right buffer
+     * @return 0 if equal, < 0 if left is less than right, etc.
+     * @author Modified from ASF Cassandra's <a href="https://svn.apache.org/repos/asf/cassandra/trunk/src/java/org/apache/cassandra/utils/FastByteComparisons.java">FastByteComparisons</a>
+     */
+
+    
+    
+    public static int compareTo(byte[] buffer1, int offset1, int length1, byte[] buffer2, int offset2, int length2) {
+    	if(buffer1==null || buffer2==null) throw new IllegalArgumentException("Passed a null buffer");
+      // Short circuit equal case
+      if (buffer1 == buffer2 &&
+          offset1 == offset2 &&
+          length1 == length2) {
+        return 0;
+      }
+      int minLength = Math.min(length1, length2);
+      int minWords = minLength / LONG_SIZE;
+      int offset1Adj = offset1 + BYTE_ARRAY_OFFSET;
+      int offset2Adj = offset2 + BYTE_ARRAY_OFFSET;
+
+      /*
+       * Compare 8 bytes at a time. Benchmarking shows comparing 8 bytes at a
+       * time is no slower than comparing 4 bytes at a time even on 32-bit.
+       * On the other hand, it is substantially faster on 64-bit.
+       */
+      for (int i = 0; i < minWords * LONG_SIZE; i += LONG_SIZE) {
+        long lw = getLong(buffer1, offset1Adj + (long) i);
+        long rw = getLong(buffer2, offset2Adj + (long) i);
+        long diff = lw ^ rw;
+
+        if (diff != 0) {
+          if (!littleEndian) {
+            return lessThanUnsigned(lw, rw) ? -1 : 1;
+          }
+
+          // Use binary search
+          int n = 0;
+          int y;
+          int x = (int) diff;
+          if (x == 0) {
+            x = (int) (diff >>> 32);
+            n = 32;
+          }
+
+          y = x << 16;
+          if (y == 0) {
+            n += 16;
+          } else {
+            x = y;
+          }
+
+          y = x << 8;
+          if (y == 0) {
+            n += 8;
+          }
+          return (int) (((lw >>> n) & 0xFFL) - ((rw >>> n) & 0xFFL));
+        }
+      }
+
+      // The epilogue to cover the last (minLength % 8) elements.
+      for (int i = minWords * LONG_SIZE; i < minLength; i++) {
+        int result = compare(
+            buffer1[offset1 + i],
+            buffer2[offset2 + i]);
+        if (result != 0) {
+          return result;
+        }
+      }
+      return length1 - length2;
+    }
+    
+    /**
+     * Lexicographically compare two arrays.
+     * @param buffer1 left operand
+     * @param buffer2 right operand
+     * @return 0 if equal, < 0 if left is less than right, etc.
+     * @author Modified from ASF Cassandra's <a href="https://svn.apache.org/repos/asf/cassandra/trunk/src/java/org/apache/cassandra/utils/FastByteComparisons.java">FastByteComparisons</a>
+     */
+
+    public static int compareTo(byte[] buffer1, byte[] buffer2) {
+    	if(buffer1==null || buffer2==null) throw new IllegalArgumentException("Passed a null buffer");
+    	return compareTo(buffer1, 0, buffer1.length, buffer2, 0, buffer2.length);
+    }
+    
+    public static final LongSlidingWindow e = new LongSlidingWindow(150000);
+    public static boolean trace = false;
+
+    /**
+     * Lexicographically compare two arrays pointed to by the passed addresses.
+     * @param address1 left operand
+     * @param size1 the length of the address1 array
+     * @param address2 right operand
+     * @param size2 the length of the address2 array
+     * @return 0 if equal, < 0 if left is less than right, etc.
+     * @author Modified from ASF Cassandra's <a href="https://svn.apache.org/repos/asf/cassandra/trunk/src/java/org/apache/cassandra/utils/FastByteComparisons.java">FastByteComparisons</a>
+     */
+
+    public static boolean compareTo(long address1, int size1, long address2, int size2) {
+    	long start = System.nanoTime();    	
+    	boolean r = byteArraysEqual(getByteArray(address1, size1), getByteArray(address2, size2));
+    	if(trace) e.insert(System.nanoTime()-start);
+    	return r;
+    }
+    
+    public static boolean byteArraysEqual(byte[] b1,byte[] b2)  {   
+      if(b1 == b2) {
+        return true;
+      }
+      if(b1.length != b2.length) {
+        return false;
+      }
+      int baseOffset = arrayBaseOffset(byte[].class);
+      int numLongs = (int)Math.ceil(b1.length / 8.0);
+      for(int i = 0;i < numLongs; ++i)  {
+        long currentOffset = baseOffset + (i * 8);
+        long l1 = getLong(b1, currentOffset);
+        long l2 = getLong(b2, currentOffset);
+        if(0L != (l1 ^ l2)) {
+          return false;
+        }
+      }
+      return true;    
+    }
+
+    
+//    public static char[] copyStringChars(String string) {
+//    	if(string==null) throw new IllegalArgumentException("The passed string was null");
+//    	int count = getInt(string, STRING_COUNT_OFFSET);
+//    	int offset = getInt(string, STRING_ARR_OFFSET);
+//    	int arrSize = count - offset;
+//    	//       to the array ----\/    to the array data ---\/  plus offset
+//    	long addressOffset = STRING_CHARS_OFFSET + CHAR_ARRAY_OFFSET + offset + 8; 
+//    	LOG.info("ChOffset: {}, AddrOffset: {}, ArrSize: {}, Count: {}, Offset: {}", CHAR_ARRAY_OFFSET, addressOffset, arrSize, count, offset);
+//    	
+//    	char[] arr = new char[arrSize];
+//    	copyMemory(string, addressOffset, arr, CHAR_ARRAY_OFFSET, arrSize * CHAR_SIZE);
+//    	return arr;
+////        STRING_CHARS_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("value"));
+////        STRING_ARR_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("offset"));
+////        STRING_COUNT_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("count"));
+//    }
+//    
+//    public static void main(String[] args) {
+//    	String s = "Goodbye Jupiter";
+//    	char[] arr = copyStringChars(s);
+//    	LOG.info("Char Arr: {}\n\tLength: {}", Arrays.toString(arr), arr.length);
+//    }
 	
 }
