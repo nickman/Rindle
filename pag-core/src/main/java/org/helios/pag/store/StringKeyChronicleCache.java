@@ -256,10 +256,10 @@ public class StringKeyChronicleCache  implements DeAllocateMe {
 	 */
 	public boolean containsKey(CharSequence key) {
 		if(key==null) return false;
-		try {
-			StringPointer sp = initCurrent(key);
+		try {			
 			xlock(lockAddress);
 			if(cache.isEmpty()) return false;
+			OffHeapKey<String> sp = strOffHeap(key);
 			return cache.containsKey(sp);
 		} finally {
 			xunlock(lockAddress);
@@ -281,36 +281,7 @@ public class StringKeyChronicleCache  implements DeAllocateMe {
 	}
 	
 	private OffHeapKey<String> strOffHeap(CharSequence key) {
-		final String s = key.toString();
-		return new OffHeapKey<String>() {
-			/**
-			 * {@inheritDoc}
-			 * @see java.lang.Object#hashCode()
-			 */
-			@Override
-			public int hashCode() {
-				return s.hashCode();
-			}
-			
-			/**
-			 * {@inheritDoc}
-			 * @see org.helios.pag.store.OffHeapKey#getBytes()
-			 */
-			@Override
-			public byte[] getBytes() {				
-				return s.getBytes(CHARSET);
-			}
-			
-			/**
-			 * {@inheritDoc}
-			 * @see java.lang.Object#equals(java.lang.Object)
-			 */
-			@Override
-			public boolean equals(Object obj) {
-				if(obj==null || !(obj instanceof OffHeapKey)) return false;
-				return UnsafeAdapter.byteArraysEqual(getBytes(), ((OffHeapKey)obj).getBytes());
-			}
-		};
+		return OffHeapStringKey.lookupKey(key);
 	}
 
 	/**
@@ -323,9 +294,10 @@ public class StringKeyChronicleCache  implements DeAllocateMe {
 		if(key==null) return NO_ENTRY_VALUE;
 		try {
 			//StringPointer sp = initCurrent(key);
-			OffHeapKey<String> sp = strOffHeap(key);
+			
 			xlock(lockAddress);
 			if(cache.isEmpty()) return NO_ENTRY_VALUE;
+			OffHeapKey<String> sp = strOffHeap(key);
 			Long l = cache.get(sp);
 			if(l==null) return NO_ENTRY_VALUE;
 			return l.longValue();
@@ -345,10 +317,8 @@ public class StringKeyChronicleCache  implements DeAllocateMe {
 	public void put(CharSequence key, long value) {
 		if(key==null) throw new IllegalArgumentException("The passed key was null");
 		try {
-//			StringPointer sp = initCurrent(key);
-			OffHeapKey<String> sp = strOffHeap(key);
 			xlock(lockAddress);			
-			cache.put(sp, value);
+			cache.put(new OffHeapStringKey(key), value);
 		} finally {
 			xunlock(lockAddress);
 			killCurrent();
@@ -361,7 +331,7 @@ public class StringKeyChronicleCache  implements DeAllocateMe {
 	 * @param value The long value
 	 * @return the previous value associated with they key or {@link #NO_ENTRY_VALUE} if there was no mapping for the key.
 	 */
-	protected long _put(StringPointer sp, long value) {
+	protected long _put(OffHeapKey<?> sp, long value) {
 		return cache.put(sp, value);
 	}
 
@@ -375,7 +345,7 @@ public class StringKeyChronicleCache  implements DeAllocateMe {
 	public long putIfAbsent(CharSequence key, long value) {
 		if(key==null) throw new IllegalArgumentException("The passed key was null");
 		try {
-			StringPointer sp = initCurrent(key);
+			OffHeapKey<?> sp = new OffHeapStringKey(key);
 			xlock(lockAddress);			
 			return cache.putIfAbsent(sp, value);
 		} finally {
@@ -393,9 +363,9 @@ public class StringKeyChronicleCache  implements DeAllocateMe {
 	public long remove(CharSequence key) {
 		if(key==null) throw new IllegalArgumentException("The passed key was null");
 		try {
-			StringPointer sp = initCurrent(key);
+			
 			xlock(lockAddress);			
-			return cache.remove(sp);
+			return cache.remove(strOffHeap(key));
 		} finally {
 			xunlock(lockAddress);
 			killCurrent();
@@ -414,8 +384,7 @@ public class StringKeyChronicleCache  implements DeAllocateMe {
 		try {			
 			xlock(lockAddress);
 			for(Map.Entry<? extends CharSequence, ? extends Long> entry: map.entrySet()) {
-				StringPointer sp = initCurrent(entry.getKey());
-				_put(sp, entry.getValue().longValue());
+				_put(strOffHeap(entry.getKey()), entry.getValue().longValue());
 			}
 		} finally {
 			xunlock(lockAddress);
