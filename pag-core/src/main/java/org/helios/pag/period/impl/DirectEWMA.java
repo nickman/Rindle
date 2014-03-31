@@ -39,7 +39,7 @@ import org.helios.pag.util.unsafe.UnsafeAdapter;
 
 public class DirectEWMA implements DeAllocateMe {
 	/** The address of the memory allocation */
-	protected final long address;
+	protected final long[] address = new long[1];
 	
 	/** The offset of the length of the sliding window in ms. */
 	public final static byte WINDOW = 0;							
@@ -64,10 +64,10 @@ public class DirectEWMA implements DeAllocateMe {
 	 * @param memSize The memory allocation size
 	 */
 	protected DirectEWMA(long windowSize, long memSize) {
-		address = UnsafeAdapter.allocateAlignedMemory(memSize);
-		UnsafeAdapter.putLong(address + WINDOW, windowSize);
-		UnsafeAdapter.putLong(address + LAST_SAMPLE, 0L);
-		UnsafeAdapter.putLong(address + AVERAGE, 0L);
+		address[0] = UnsafeAdapter.allocateAlignedMemory(memSize);
+		UnsafeAdapter.putLong(address[0] + WINDOW, windowSize);
+		UnsafeAdapter.putLong(address[0] + LAST_SAMPLE, 0L);
+		UnsafeAdapter.putLong(address[0] + AVERAGE, 0L);
 		UnsafeAdapter.registerForDeAlloc(this);
 	}
 	
@@ -77,7 +77,7 @@ public class DirectEWMA implements DeAllocateMe {
 	 * @return the timestamp of the last sample 
 	 */
 	public long getLastSample() {
-		return UnsafeAdapter.getLong(address + LAST_SAMPLE);
+		return UnsafeAdapter.getLong(address[0] + LAST_SAMPLE);
 	}
 	
 	/**
@@ -85,7 +85,7 @@ public class DirectEWMA implements DeAllocateMe {
 	 * @return the last computed average 
 	 */
 	public double getAverage() {
-		return UnsafeAdapter.getDouble(address + AVERAGE);
+		return UnsafeAdapter.getDouble(address[0] + AVERAGE);
 	}
 	
 	/**
@@ -93,7 +93,7 @@ public class DirectEWMA implements DeAllocateMe {
 	 * @return the window size  
 	 */
 	public long getWindow() {
-		return UnsafeAdapter.getLong(address + WINDOW);
+		return UnsafeAdapter.getLong(address[0] + WINDOW);
 	}
 	
 	/**
@@ -104,13 +104,13 @@ public class DirectEWMA implements DeAllocateMe {
 		final long now = System.currentTimeMillis();
 		final long lastSample = getLastSample(); 
 		if(lastSample == 0L) {
-			UnsafeAdapter.putDouble(address + AVERAGE, sample);
-			UnsafeAdapter.putLong(address + LAST_SAMPLE, now);
+			UnsafeAdapter.putDouble(address[0] + AVERAGE, sample);
+			UnsafeAdapter.putLong(address[0] + LAST_SAMPLE, now);
 		} else {
 			long deltaTime = now - lastSample;
 			double coeff = Math.exp(-1.0 * ((double)deltaTime / getWindow()));
-			UnsafeAdapter.putDouble(address + AVERAGE, (1.0 - coeff) * sample + coeff * getAverage());
-			UnsafeAdapter.putLong(address + LAST_SAMPLE, now);
+			UnsafeAdapter.putDouble(address[0] + AVERAGE, (1.0 - coeff) * sample + coeff * getAverage());
+			UnsafeAdapter.putLong(address[0] + LAST_SAMPLE, now);
 		}
 	}
 	
@@ -132,8 +132,8 @@ public class DirectEWMA implements DeAllocateMe {
 	 * @see org.helios.pag.util.unsafe.DeAllocateMe#getAddresses()
 	 */
 	@Override
-	public long[] getAddresses() {
-		return new long[]{address};
+	public long[][] getAddresses() {
+		return new long[][]{address};
 	}
 
 }

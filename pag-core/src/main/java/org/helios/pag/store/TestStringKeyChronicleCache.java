@@ -24,14 +24,16 @@
  */
 package org.helios.pag.store;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.helios.pag.Constants;
 import org.helios.pag.util.SystemClock;
 import org.helios.pag.util.SystemClock.ElapsedTime;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
@@ -47,14 +49,15 @@ import org.helios.pag.util.unsafe.UnsafeAdapter;
 public class TestStringKeyChronicleCache {
 	
 	private static final Logger LOG = LogManager.getLogger("TESTC");
-
+	private static final MemoryMXBean memBean = ManagementFactory.getMemoryMXBean();
 
 	/**
 	 * @param args
 	 */
 	public static void main(String[] args) {
+		System.setProperty(Constants.TRACK_MEM_PROP, "true");
 		LOG.info("TestStringKeyChronicleCache");
-		int sampleSize = 150000;
+		int sampleSize = 1500000;
 		String[] samples = new String[sampleSize];
 		Map<String, Long> sampleMap = new HashMap<String, Long>(sampleSize);		
 		for(int i = 0; i < sampleSize; i++) {
@@ -99,19 +102,24 @@ public class TestStringKeyChronicleCache {
 			}
 		}
 		LOG.info("Map Only Get Test: {}", et.printAvg("Samples", sampleSize));
+		System.gc(); System.gc();
+		long before = memBean.getHeapMemoryUsage().getUsed();
+		LOG.info("\n\tMap Heap Used Before Clear: {} KB\n\tCache Off-Heap Used Before Clear: {} KB", before/1024, UnsafeAdapter.unsafeMemoryStats.getTotalAllocatedMemoryKb());
 		map.clear();
-		System.gc();
-		cache.initCnt=0;
+		System.gc(); System.gc();
 		try { Thread.sleep(1000); } catch (Exception x) {}
-		UnsafeAdapter.trace = true;
+		long after = memBean.getHeapMemoryUsage().getUsed();
+		LOG.info("\n\tMap Heap Used After Clear: {} KB\n\tCache Off-Heap Used After Clear: {} KB", after/1024, UnsafeAdapter.unsafeMemoryStats.getTotalAllocatedMemoryKb());
+		LOG.info("----> Map Mem Used: {} KB", (before-after)/1024);
+		try { Thread.sleep(1000); } catch (Exception x) {}
 		LOG.info("Starting Cache Only Put Test");
 		et = SystemClock.startClock();
 //		cache.putAll(sampleMap);
 		for(int i = 0; i < sampleSize; i++) {
+//			cache.putAll(sampleMap);
 			cache.put(samples[i], i);
 		}
-		LOG.info("Cache Only Put Test: {}", et.printAvg("Samples", sampleSize));
-		cache.initCnt = 0;
+		LOG.info("Cache Only Put Test: {}", et.printAvg("Samples", sampleSize));		
 		et = SystemClock.startClock();
 		for(int i = 0; i < sampleSize; i++) {
 			long v = cache.get(samples[i]);
@@ -121,10 +129,19 @@ public class TestStringKeyChronicleCache {
 			}
 		}
 		LOG.info("Cache Only Get Test: {}", et.printAvg("Samples", sampleSize));
+		System.gc(); System.gc();
+		before = memBean.getHeapMemoryUsage().getUsed();
+		LOG.info("\n\tCache Heap Used Before Clear: {} KB\n\tCache Off-Heap Used Before Clear: {} KB", before/1024, UnsafeAdapter.unsafeMemoryStats.getTotalAllocatedMemoryKb());
 		cache.clear();
-		System.gc();
-		LOG.info("e:\n\tSum: {} ms.\n\tAvg: {} ns.\n\tSize: {}\n\tSP Inits: {}", TimeUnit.MILLISECONDS.convert(UnsafeAdapter.e.sum(), TimeUnit.NANOSECONDS), UnsafeAdapter.e.avg(), UnsafeAdapter.e.size(), cache.initCnt);
+		cache.trimToSize();
+		System.gc(); System.gc();
 		try { Thread.sleep(1000); } catch (Exception x) {}
+		after = memBean.getHeapMemoryUsage().getUsed();
+		LOG.info("\n\tCache Heap Used After Clear: {} KB\n\tCache Off-Heap Used After Clear: {} KB", after/1024, UnsafeAdapter.unsafeMemoryStats.getTotalAllocatedMemoryKb());
+		LOG.info("----> Cache Mem Used: {} KB", (before-after)/1024);
+
+		
+		
 		
 		
 	}

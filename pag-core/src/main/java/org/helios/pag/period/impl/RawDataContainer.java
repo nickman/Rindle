@@ -72,8 +72,8 @@ public class RawDataContainer implements DeAllocateMe {
 	
 
 	@Override
-	public long[] getAddresses() {
-		return address;
+	public long[][] getAddresses() {
+		return new long[][] {address};
 	}		
 	
 	/**

@@ -61,7 +61,7 @@ public class ChronicleCache implements DeAllocateMe {
 	/** The store chronicle writer excerpt */
 	protected final Excerpt chronicleWriter;
 	/** The address of the global lock for this instance's chronicle writer */
-	protected final long globalLockAddress;
+	protected final long[] globalLockAddress = new long[1];
 	
 	/** Instance logger */
 	protected final Logger log;
@@ -98,7 +98,7 @@ public class ChronicleCache implements DeAllocateMe {
 			indexedChronicle.useUnsafe(config.unsafe);
 			indexedChronicle.multiThreaded(true);
 			chronicleWriter = indexedChronicle.createExcerpt();
-			globalLockAddress = UnsafeAdapter.allocateAlignedMemory(UnsafeAdapter.LONG_SIZE);
+			globalLockAddress[0] = UnsafeAdapter.allocateAlignedMemory(UnsafeAdapter.LONG_SIZE);
 			UnsafeAdapter.registerForDeAlloc(this);
 			log.info(StringHelper.banner("Created ChronicleCache [%s]", name));
 		} catch (IOException e) {
@@ -113,8 +113,8 @@ public class ChronicleCache implements DeAllocateMe {
 	 * @see org.helios.pag.util.unsafe.DeAllocateMe#getAddresses()
 	 */
 	@Override
-	public long[] getAddresses() {
-		return new long[] {globalLockAddress};
+	public long[][] getAddresses() {
+		return new long[][]{globalLockAddress};
 	}
 	
 	

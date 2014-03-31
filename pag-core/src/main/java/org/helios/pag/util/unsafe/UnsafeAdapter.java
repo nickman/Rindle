@@ -49,6 +49,7 @@ public class UnsafeAdapter {
     /** Object array offset */
     public static final long OBJECTS_OFFSET;
     
+    
     /** Indicates if the 5 param copy memory is supported */
     public static final boolean FIVE_COPY;
     /** Indicates if the 4 param set memory is supported */
@@ -86,12 +87,12 @@ public class UnsafeAdapter {
     //==================================================================================================
     //		String internals
     //==================================================================================================
-    /** The offset of the char array in a String */
-    public static final long STRING_CHARS_OFFSET;
-    /** The offset of the char array in a String */
-    public static final long STRING_ARR_OFFSET;
-    /** The offset of the char array in a String */
-    public static final long STRING_COUNT_OFFSET;
+//    /** The offset of the char array in a String */
+//    public static final long STRING_CHARS_OFFSET;
+//    /** The offset of the char array in a String */
+//    public static final long STRING_ARR_OFFSET;
+//    /** The offset of the char array in a String */
+//    public static final long STRING_COUNT_OFFSET;
 	
 	/** The configured native memory tracking enablement  */
 	public static final boolean trackMem;
@@ -105,7 +106,7 @@ public class UnsafeAdapter {
 //	private static final Set<String> deallocators;
 	
 	/** The unsafe memory management MBean */
-	private static final UnsafeMemory unsafeMemory;
+	public static final UnsafeMemoryMBean unsafeMemoryStats;
 	
 	
 	/** A map of memory allocation sizes keyed by the address */
@@ -211,6 +212,50 @@ public class UnsafeAdapter {
 //   	 * @return the distinct native memory allocating callers with no de-allocating calls.
 //   	 */
 //   	public Set<String> getNonDeallocatingAllocators();
+    	
+    }
+
+    public static class InactiveUnsafeMemory implements UnsafeMemoryMBean  {
+
+		@Override
+		public Map<String, Long> getState() {
+			return Collections.EMPTY_MAP;
+		}
+
+		@Override
+		public long getTotalAllocatedMemory() {
+			return -1L;
+		}
+
+		@Override
+		public long getAlignedMemoryOverhead() {
+			return -1L;
+		}
+
+		@Override
+		public long getTotalAllocatedMemoryKb() {
+			return -1L;
+		}
+
+		@Override
+		public long getTotalAllocatedMemoryMb() {
+			return -1L;
+		}
+
+		@Override
+		public int getTotalAllocationCount() {
+			return -1;
+		}
+
+		@Override
+		public long getRefQueueSize() {
+			return -1L;
+		}
+
+		@Override
+		public int getPendingRefs() {			
+			return -1;
+		}
     	
     }
     
@@ -357,6 +402,7 @@ public class UnsafeAdapter {
     //=========================================================================================================
     
     private static final long[] EMPTY_LONG_ARR = {};
+    private static final long[][] EMPTY_ADDRESSES = {{}};
     private static final List<MemoryAllocationReference> EMPTY_ALLOC_LIST = Collections.emptyList();
     protected static final AtomicLong refQueueSize = new AtomicLong(0L);
     protected static final NonBlockingHashMapLong<MemoryAllocationReference> deAllocs = new NonBlockingHashMapLong<MemoryAllocationReference>(1024, false);
@@ -368,7 +414,7 @@ public class UnsafeAdapter {
     	/** The index of this reference */
     	private final long index = refIndexFactory.incrementAndGet();
     	/** The memory addresses owned by this reference */
-    	private final long[] addresses;
+    	private final long[][] addresses;
     	/** Debug runnable */
     	private final Runnable runOnClear;
     	
@@ -379,7 +425,7 @@ public class UnsafeAdapter {
 		public MemoryAllocationReference(final DeAllocateMe referent) {
 			super(referent, deallocations);
 			refQueueSize.incrementAndGet();
-			addresses = referent==null ? EMPTY_LONG_ARR : referent.getAddresses();
+			addresses = referent==null ? EMPTY_ADDRESSES : referent.getAddresses();
 			deAllocs.put(index, this);
 			
 			if(LOG.isTraceEnabled()) {
@@ -398,9 +444,9 @@ public class UnsafeAdapter {
 		
 		@Override
 		public void clear() {
-			for(long address: addresses) {
-				if(address!=-1L) {
-					freeMemory(address);
+			for(long[] address: addresses) {
+				if(address[0]>0) {
+					freeMemory(address[0]);
 					if(runOnClear!=null) runOnClear.run();
 				}
 				deAllocs.remove(index);
@@ -422,7 +468,7 @@ public class UnsafeAdapter {
     			try {
     				MemoryAllocationReference phantom = (MemoryAllocationReference) deallocations.remove();
     				refQueueSize.decrementAndGet();
-    				phantom.clear();
+    				phantom.clear();    				
     			} catch (Throwable t) {
     				if(Thread.interrupted()) Thread.interrupted();
     			}
@@ -442,7 +488,7 @@ public class UnsafeAdapter {
     	List<MemoryAllocationReference> refs = new ArrayList<MemoryAllocationReference>();
     	for(DeAllocateMe dame: deallocators) {
     		if(dame==null) continue;
-    		long[] addresses = dame.getAddresses();
+    		long[][] addresses = dame.getAddresses();
     		if(addresses==null || addresses.length==0) continue;
     		refs.add(new MemoryAllocationReference(dame));
     	}
@@ -481,9 +527,9 @@ public class UnsafeAdapter {
             BYTE_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
             CHAR_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(char[].class);
             
-            STRING_CHARS_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("value"));
-            STRING_ARR_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("offset"));
-            STRING_COUNT_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("count"));
+//            STRING_CHARS_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("value"));
+//            STRING_ARR_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("offset"));
+//            STRING_COUNT_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("count"));
             
             int copyMemCount = 0;
             int setMemCount = 0;
@@ -505,18 +551,18 @@ public class UnsafeAdapter {
         	trackMem = System.getProperties().containsKey(Constants.TRACK_MEM_PROP);   
         	alignMem = System.getProperties().containsKey(Constants.ALIGN_MEM_PROP);
         	if(trackMem) {
-        		unsafeMemory = new UnsafeMemory();
+        		unsafeMemoryStats = new UnsafeMemory();
         		memoryAllocations = new NonBlockingHashMapLong<long[]>(1024, true);
         		totalMemoryAllocated = new AtomicLong(0L);
         		totalAlignmentOverhead = new AtomicLong(0L);
 //        		deallocators = new HashSet<String>(1024);
 //        		allocators = new HashSet<String>(1024);
-        		JMXHelper.registerMBean(unsafeMemory, JMXHelper.objectName("%s:%s=%s", UnsafeAdapter.class.getPackage().getName(), "service", UnsafeMemory.class.getSimpleName()));
+        		JMXHelper.registerMBean(unsafeMemoryStats, JMXHelper.objectName("%s:%s=%s", UnsafeAdapter.class.getPackage().getName(), "service", UnsafeMemory.class.getSimpleName()));
         	} else {
-        		unsafeMemory = null;
         		totalMemoryAllocated = null;
         		memoryAllocations = null;
         		totalAlignmentOverhead = null;
+        		unsafeMemoryStats = new InactiveUnsafeMemory();
 //        		deallocators = null;
 //        		allocators = null;
         	}
@@ -551,7 +597,7 @@ public class UnsafeAdapter {
      * @return a map of unsafe memory stats 
      */
     public static Map<String, Long> getUnsafeMemoryStats() {
-    	return trackMem ? unsafeMemory.getState() : EMPTY_STAT_MAP;
+    	return trackMem ? unsafeMemoryStats.getState() : EMPTY_STAT_MAP;
     }
     
     /**
@@ -1883,13 +1929,13 @@ public class UnsafeAdapter {
 	public static final long SHARED_LOCK = -2L;
 	
 	/**
-	 * Allocates an initialized and initially unlocked spin lock
-	 * @return the address of the spin lock
+	 * Allocates an initialized and initially unlocked memory based spin lock
+	 * @return the spin lock
 	 */
-	public static long allocateSpinLock() {
+	public static SpinLock allocateSpinLock() {
 		long address = allocateAlignedMemory(UnsafeAdapter.LONG_SIZE);
 		putLong(address, NO_LOCK);
-		return address;
+		return new MemSpinLock(address);
 	}
 	
 	/**
@@ -1913,6 +1959,79 @@ public class UnsafeAdapter {
 		final long tId = Thread.currentThread().getId();
 		return compareAndSwapLong(null, address, tId, NO_LOCK);
 	}
+	
+	/**
+	 * <p>Title: SpinLock</p>
+	 * <p>Description: Defines a sping lock impl.</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>org.helios.pag.util.unsafe.UnsafeAdapterSpinLock</code></p>
+	 */
+	public interface SpinLock {
+		/**
+		 * Acquires the lock with the calling thread
+		 */
+		public void xlock();
+		
+		/**
+		 * Releases the lock if it is held by the calling thread
+		 */
+		public void xunlock();
+		
+	}
+	
+	/**
+	 * <p>Title: MemSpinLock</p>
+	 * <p>Description: Unsafe spin lock</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>org.helios.pag.util.unsafe.UnsafeAdapter.MemSpinLock</code></p>
+	 */
+
+	public static class MemSpinLock implements SpinLock, DeAllocateMe {
+		/** The lock address */
+		protected final long address;
+
+		/**
+		 * Creates a new MemSpinLock
+		 * @param address The address of the lock
+		 */
+		private MemSpinLock(long address) {
+			this.address = address;
+			UnsafeAdapter.registerForDeAlloc(this);
+		}
+
+		/**
+		 * Returns the lock address
+		 * @return the lock address
+		 */
+		public long address() {
+			return address;
+		}
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.pag.util.unsafe.DeAllocateMe#getAddresses()
+		 */
+		@Override
+		public long[][] getAddresses() {
+			return new long[][] {{address}};
+		}
+
+		/**
+		 * Acquires the lock with the calling thread
+		 */
+		public void xlock() {
+			UnsafeAdapter.xlock(address);
+		}
+		
+		/**
+		 * Releases the lock if it is held by the calling thread
+		 */
+		public void xunlock() {
+			UnsafeAdapter.xunlock(address);
+		}
+	}
+	
 	
 //	public static boolean slock(final long address) {
 //		if(compareAndSwapLong(null, address, NO_LOCK, SHARED_LOCK)) return true;
@@ -2256,8 +2375,8 @@ public class UnsafeAdapter {
     	return compareTo(buffer1, 0, buffer1.length, buffer2, 0, buffer2.length);
     }
     
-    public static final LongSlidingWindow e = new LongSlidingWindow(150000);
-    public static boolean trace = false;
+//    public static final LongSlidingWindow e = new LongSlidingWindow(150000);
+//    public static boolean trace = false;
 
     /**
      * Lexicographically compare two arrays pointed to by the passed addresses.
@@ -2270,10 +2389,15 @@ public class UnsafeAdapter {
      */
 
     public static boolean compareTo(long address1, int size1, long address2, int size2) {
-    	long start = System.nanoTime();    	
-    	boolean r = byteArraysEqual(getByteArray(address1, size1), getByteArray(address2, size2));
-    	if(trace) e.insert(System.nanoTime()-start);
-    	return r;
+//    	long start = System.nanoTime();    	
+    	return byteArraysEqual(getByteArray(address1, size1), getByteArray(address2, size2));
+//    	if(trace) e.insert(System.nanoTime()-start);
+//    	return r;
+    }
+    
+    
+    public static boolean charAraysEqual(char[] c1, char[] c2) {
+    	return compareTo(getAddressOf(c1) + CHAR_ARRAY_OFFSET, c1.length, getAddressOf(c2) + CHAR_ARRAY_OFFSET, c2.length);
     }
     
     public static boolean byteArraysEqual(byte[] b1,byte[] b2)  {   

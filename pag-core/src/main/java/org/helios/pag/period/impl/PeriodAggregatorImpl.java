@@ -23,8 +23,8 @@ import org.helios.pag.util.unsafe.collections.LongSlidingWindow;
  */
 
 public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
-	/** The address of the store for this aggregator */
-	protected final long address;
+	/** The address[0] of the store for this aggregator */
+	protected final long[] address = new long[1];
 	
 	/** The raw data container used when a subscriber has requested an aggregation that requires all raw data for the period */
 	protected RawDataContainer rawData = null;
@@ -62,8 +62,8 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	public static final byte LONG = 1;
 
 	
-	public long[] getAddresses() {
-		return new long[]{address};
+	public long[][] getAddresses() {
+		return new long[][]{address};
 	}
 	
 	
@@ -79,27 +79,27 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 */
 	public IPeriodAggregator processDataPoint(final DataPoint dataPoint) {
 		final long startTime = System.nanoTime();
-		UnsafeAdapter.runInLock(address, new Runnable(){
+		UnsafeAdapter.runInLock(address[0], new Runnable(){
 			public void run() {
 				final long newCount = increment();
 				if(dataPoint.hasDoubleValue()) {
 					double val = dataPoint.getDoubleValue();
-					if(val < UnsafeAdapter.getDouble(address + MIN)) UnsafeAdapter.putDouble(address + MIN, val);
-					if(val > UnsafeAdapter.getDouble(address + MAX)) UnsafeAdapter.putDouble(address + MAX, val);
+					if(val < UnsafeAdapter.getDouble(address[0] + MIN)) UnsafeAdapter.putDouble(address[0] + MIN, val);
+					if(val > UnsafeAdapter.getDouble(address[0] + MAX)) UnsafeAdapter.putDouble(address[0] + MAX, val);
 					if(newCount==1) {
-						UnsafeAdapter.putDouble(address + MEAN, val);
+						UnsafeAdapter.putDouble(address[0] + MEAN, val);
 					} else {
-						UnsafeAdapter.putDouble(address + MEAN, avgd(UnsafeAdapter.getDouble(address + MEAN), newCount-1, val));
+						UnsafeAdapter.putDouble(address[0] + MEAN, avgd(UnsafeAdapter.getDouble(address[0] + MEAN), newCount-1, val));
 					}
 					if(isRawEnabled()) rawData.append(val);
 				} else {
 					long val = dataPoint.getLongValue();
-					if(val < UnsafeAdapter.getLong(address + MIN)) UnsafeAdapter.putLong(address + MIN, val);
-					if(val > UnsafeAdapter.getLong(address + MAX)) UnsafeAdapter.putLong(address + MAX, val);
+					if(val < UnsafeAdapter.getLong(address[0] + MIN)) UnsafeAdapter.putLong(address[0] + MIN, val);
+					if(val > UnsafeAdapter.getLong(address[0] + MAX)) UnsafeAdapter.putLong(address[0] + MAX, val);
 					if(newCount==1) {
-						UnsafeAdapter.putDouble(address + MEAN, val);
+						UnsafeAdapter.putDouble(address[0] + MEAN, val);
 					} else {
-						UnsafeAdapter.putDouble(address + MEAN, avgd(UnsafeAdapter.getDouble(address + MEAN), newCount-1, val));
+						UnsafeAdapter.putDouble(address[0] + MEAN, avgd(UnsafeAdapter.getDouble(address[0] + MEAN), newCount-1, val));
 					}
 					if(isRawEnabled()) {
 						rawData.append(val);
@@ -132,7 +132,7 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 * Creates a new PeriodAggregatorImpl for the const.
 	 */
 	private PeriodAggregatorImpl() {
-		address = -1L;
+		address[0] = -1L;
 	}
 	
 	/**
@@ -140,11 +140,11 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 * @param isDouble true for a double, false for a long
 	 */
 	public PeriodAggregatorImpl(boolean isDouble) {
-		address = UnsafeAdapter.allocateAlignedMemory(TOTAL);
+		address[0] = UnsafeAdapter.allocateAlignedMemory(TOTAL);
 		UnsafeAdapter.registerForDeAlloc(this);
-		UnsafeAdapter.setMemory(address, TOTAL, ZERO_BYTE);
-		UnsafeAdapter.putLong(address, UnsafeAdapter.NO_LOCK);
-		UnsafeAdapter.putByte(address + DOUBLE_OR_LONG, isDouble ? DOUBLE : LONG);
+		UnsafeAdapter.setMemory(address[0], TOTAL, ZERO_BYTE);
+		UnsafeAdapter.putLong(address[0], UnsafeAdapter.NO_LOCK);
+		UnsafeAdapter.putByte(address[0] + DOUBLE_OR_LONG, isDouble ? DOUBLE : LONG);
 		reset();
 	}
 	
@@ -153,7 +153,7 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 //	 * @param youButACopy The aggregator to copy
 //	 */
 //	public ReadOnlyPeriodAggregator readOnly() {
-//		return new ReadOnlyPeriodAggregator(address);
+//		return new ReadOnlyPeriodAggregator(address[0]);
 //	}
 	
 	/**
@@ -161,13 +161,13 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 */
 	protected void reset() {
 		if(isLong()) {
-			UnsafeAdapter.putLong(address + MIN, Long.MAX_VALUE);
-			UnsafeAdapter.putLong(address + MAX, Long.MIN_VALUE);
+			UnsafeAdapter.putLong(address[0] + MIN, Long.MAX_VALUE);
+			UnsafeAdapter.putLong(address[0] + MAX, Long.MIN_VALUE);
 		} else {
-			UnsafeAdapter.putDouble(address + MIN, Double.MAX_VALUE);
-			UnsafeAdapter.putDouble(address + MAX, Double.MIN_VALUE);			
+			UnsafeAdapter.putDouble(address[0] + MIN, Double.MAX_VALUE);
+			UnsafeAdapter.putDouble(address[0] + MAX, Double.MIN_VALUE);			
 		}
-		UnsafeAdapter.putLong(address + COUNT, 0L);
+		UnsafeAdapter.putLong(address[0] + COUNT, 0L);
 	}
 	
 	/**
@@ -176,7 +176,7 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 */
 	@Override
 	public boolean isRawEnabled() {
-		return UnsafeAdapter.getByte(address + RAW_ENABLED)!=ZERO_BYTE;  // ZERO_BYTE = false, ONE_BYTE = true
+		return UnsafeAdapter.getByte(address[0] + RAW_ENABLED)!=ZERO_BYTE;  // ZERO_BYTE = false, ONE_BYTE = true
 	}
 	
 	/**
@@ -184,9 +184,9 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 * @param enabled true to enable, false to disable
 	 */
 	public void setRawEnabled(final boolean enabled) {
-		UnsafeAdapter.runInLock(address, new Runnable(){
+		UnsafeAdapter.runInLock(address[0], new Runnable(){
 			public void run() {				
-				UnsafeAdapter.putByte(address + RAW_ENABLED, enabled ? ONE_BYTE : ZERO_BYTE);
+				UnsafeAdapter.putByte(address[0] + RAW_ENABLED, enabled ? ONE_BYTE : ZERO_BYTE);
 				if(enabled && rawData==null) {
 					rawData = RawDataContainer.newInstance();
 				} else if(!enabled && rawData!=null) {
@@ -202,9 +202,9 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	}
 
 	public long increment(long value) {
-		long newval = UnsafeAdapter.getLong(address + COUNT) + value;
-		UnsafeAdapter.putLong(address + COUNT, newval);
-		UnsafeAdapter.putLong(address + LAST_TIME, System.currentTimeMillis());
+		long newval = UnsafeAdapter.getLong(address[0] + COUNT) + value;
+		UnsafeAdapter.putLong(address[0] + COUNT, newval);
+		UnsafeAdapter.putLong(address[0] + LAST_TIME, System.currentTimeMillis());
 		return newval;
 	}
 
@@ -287,7 +287,7 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 */
 	@Override
 	public long getId() {
-		return UnsafeAdapter.getLong(address + ID);
+		return UnsafeAdapter.getLong(address[0] + ID);
 	}
 
 	/**
@@ -296,7 +296,7 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 */
 	@Override
 	public long getLastTime() {
-		return UnsafeAdapter.getLong(address + LAST_TIME);
+		return UnsafeAdapter.getLong(address[0] + LAST_TIME);
 	}
 
 	/**
@@ -305,7 +305,7 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 */
 	@Override
 	public long getCount() {
-		return UnsafeAdapter.getLong(address + COUNT);
+		return UnsafeAdapter.getLong(address[0] + COUNT);
 	}
 
 	/**
@@ -314,7 +314,7 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 */
 	@Override
 	public boolean isLong() {
-		return UnsafeAdapter.getByte(address + DOUBLE_OR_LONG)==LONG;
+		return UnsafeAdapter.getByte(address[0] + DOUBLE_OR_LONG)==LONG;
 	}
 
 	/**
@@ -323,37 +323,37 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 */
 	@Override
 	public boolean isDouble() {
-		return UnsafeAdapter.getByte(address + DOUBLE_OR_LONG)==DOUBLE;
+		return UnsafeAdapter.getByte(address[0] + DOUBLE_OR_LONG)==DOUBLE;
 	}
 
 	@Override
 	public double getDoubleMean() {
-		return UnsafeAdapter.getDouble(address + MEAN);
+		return UnsafeAdapter.getDouble(address[0] + MEAN);
 	}
 
 	@Override
 	public double getDoubleMin() {
-		return UnsafeAdapter.getDouble(address + MIN);
+		return UnsafeAdapter.getDouble(address[0] + MIN);
 	}
 
 	@Override
 	public double getDoubleMax() {
-		return UnsafeAdapter.getDouble(address + MAX);
+		return UnsafeAdapter.getDouble(address[0] + MAX);
 	}
 
 	@Override
 	public long getLongMean() {
-		return (long)UnsafeAdapter.getDouble(address + MEAN);
+		return (long)UnsafeAdapter.getDouble(address[0] + MEAN);
 	}
 
 	@Override
 	public long getLongMin() {
-		return UnsafeAdapter.getLong(address + MIN);
+		return UnsafeAdapter.getLong(address[0] + MIN);
 	}
 
 	@Override
 	public long getLongMax() {
-		return UnsafeAdapter.getLong(address + MAX);
+		return UnsafeAdapter.getLong(address[0] + MAX);
 	}
 
 	@Override
@@ -435,7 +435,7 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + (int) (address ^ (address >>> 32));
+		result = prime * result + (int) (address[0] ^ (address[0] >>> 32));
 		return result;
 	}
 
@@ -452,7 +452,7 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 		if (getClass() != obj.getClass())
 			return false;
 		PeriodAggregatorImpl other = (PeriodAggregatorImpl) obj;
-		if (address != other.address)
+		if (address[0] != other.address[0])
 			return false;
 		return true;
 	}

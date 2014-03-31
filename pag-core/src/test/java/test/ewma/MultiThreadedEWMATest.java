@@ -27,13 +27,14 @@ package test.ewma;
 import java.lang.management.ManagementFactory;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.helios.pag.period.impl.ConcurrentDirectEWMA;
-import org.helios.pag.period.impl.SynchronizedDirectEWMA;
 import org.helios.pag.util.SystemClock;
 import org.helios.pag.util.SystemClock.ElapsedTime;
+import org.helios.pag.util.unsafe.UnsafeAdapter;
 
 /**
  * <p>Title: MultiThreadedEWMATest</p>
@@ -57,7 +58,7 @@ public class MultiThreadedEWMATest {
 		int warmupLoops = 1500000;
 		long windowSize = 5000;
 		final int loops = 1000;
-		int threadCount = 1;
+		int threadCount = CORES;
 		final double[] samples = new double[sampleCount];
 		for(int i = 0; i < sampleCount; i++) {
 			//samples[i] = R.nextGaussian();
@@ -72,13 +73,14 @@ public class MultiThreadedEWMATest {
 		warmupCde = null;
 		System.gc();
 		LOG.info("Warmup Complete");
-		final ConcurrentDirectEWMA cde = new ConcurrentDirectEWMA(windowSize);
+		final AtomicReference<ConcurrentDirectEWMA> cde = new AtomicReference<ConcurrentDirectEWMA>(new ConcurrentDirectEWMA(windowSize));
 //		final SynchronizedDirectEWMA cde = new SynchronizedDirectEWMA(windowSize);
 		final CountDownLatch startLatch = new CountDownLatch(1);
 		final CountDownLatch completionLatch = new CountDownLatch(threadCount);
 		Thread[] threads = new Thread[threadCount];
 		for(int i = 0; i < threadCount; i++) {
 			threads[i] = new Thread("TestThread#" + i) {
+				ConcurrentDirectEWMA ewma = cde.get();
 				public void run() {
 					try {
 						startLatch.await();
@@ -88,7 +90,7 @@ public class MultiThreadedEWMATest {
 					LOG.info("Thread {} Started", Thread.currentThread());
 					for(int x = 0; x < loops; x++) {
 						for(double d: samples) {
-							cde.append(d);
+							ewma.append(d);
 						}
 					}
 					completionLatch.countDown();
@@ -104,10 +106,14 @@ public class MultiThreadedEWMATest {
 		try {
 			completionLatch.await();
 			LOG.info(et.printAvg("Samples for ConcurrentDirectEWMA", threadCount * loops * sampleCount));
-			LOG.info(cde);
-			//cde = null;
-			System.gc();
+			LOG.info(cde.get());
+			LOG.info(UnsafeAdapter.printUnsafeMemoryStats());
+			threads = null;
+			cde.set(null);
+			System.gc(); System.gc();
 			Thread.sleep(3000);
+			System.gc(); System.gc();
+			LOG.info(UnsafeAdapter.printUnsafeMemoryStats());
 		} catch (Exception x) {
 			LOG.error("Main error", x);
 		}

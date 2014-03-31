@@ -47,6 +47,24 @@ public class StringHelper {
 	}
 	
 	/**
+	 * Calculates a low collision hash code for the passed string
+	 * @param s The string to calculate the hash code for
+	 * @return the long hashcode
+	 */
+	public static long longHashCode(String s) {
+		long h = 0;
+        int len = s.length();
+    	int off = 0;
+    	int hashPrime = s.hashCode();
+    	char val[] = s.toCharArray();
+        for (int i = 0; i < len; i++) {
+            h = (31*h + val[off++] + (hashPrime*h));
+        }
+        return h;
+	}
+	
+	
+	/**
 	 * Returns the descriptor for the passed member
 	 * @param m The class member
 	 * @return the member descriptor

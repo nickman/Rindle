@@ -24,16 +24,13 @@
  */
 package org.helios.pag.store;
 
-import static org.helios.pag.util.unsafe.UnsafeAdapter.xlock;
-import static org.helios.pag.util.unsafe.UnsafeAdapter.xunlock;
-import gnu.trove.map.hash.TObjectLongHashMap;
+import gnu.trove.map.hash.TLongLongHashMap;
 
-import java.nio.charset.Charset;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
-import org.helios.pag.util.unsafe.DeAllocateMe;
+import org.helios.pag.util.StringHelper;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
+import org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock;
 
 /**
  * <p>Title: StringKeyChronicleCache</p>
@@ -43,22 +40,16 @@ import org.helios.pag.util.unsafe.UnsafeAdapter;
  * <p><code>org.helios.pag.store.StringKeyChronicleCache</code></p>
  */
 
-public class StringKeyChronicleCache  implements DeAllocateMe {
-	/** The lock address */
-	protected final long lockAddress;
-	/** The default platform charset */
-	public static final Charset CHARSET = Charset.defaultCharset();
-    /** the load above which rehashing occurs. */
-    public static final float DEFAULT_LOAD_FACTOR = 0.5f;
+public class StringKeyChronicleCache  implements IStringKeyCache {
 	
-	/** A thread local containing the string matcher for the currently executing lookup */
-	private static final ThreadLocal<StringPointer> CURRENT_STRING_MATCHER = new ThreadLocal<StringPointer>();
-	/** The cache no entry value, meaning a non-existent value not in the cache */
-	public static final long NO_ENTRY_VALUE = -1L;
+	/** The spin lock */
+	protected final SpinLock lock = UnsafeAdapter.allocateSpinLock();
 
 	/** The cache of Chronicle entry ids keyed by the string pointer of the name */
-	private final TObjectLongHashMap<OffHeapKey<?>> cache;
+//	private final TObjectLongHashMap<OffHeapKey<?>> cache;
 //	private final ConcurrentHashMap<OffHeapKey<?>, Long> cache; 
+//	private final NonBlockingHashMapLong<Long> cache;
+	private final TLongLongHashMap cache;
 	
 	/**
 	 * Creates a new StringKeyChronicleCache
@@ -66,10 +57,10 @@ public class StringKeyChronicleCache  implements DeAllocateMe {
      * @param loadFactor used to calculate the threshold over which rehashing takes place.
 	 */
 	public StringKeyChronicleCache(int initialCapacity, float loadFactor) {
-		cache = new TObjectLongHashMap<OffHeapKey<?>>(initialCapacity, loadFactor, NO_ENTRY_VALUE);
+//		cache = new TObjectLongHashMap<OffHeapKey<?>>(initialCapacity, loadFactor, NO_ENTRY_VALUE);
 //		cache = new ConcurrentHashMap<OffHeapKey<?>, Long>(initialCapacity);
-		lockAddress = UnsafeAdapter.allocateSpinLock();		
-		UnsafeAdapter.registerForDeAlloc(this);
+//		cache = new NonBlockingHashMapLong<Long>(initialCapacity);
+		cache = new TLongLongHashMap(initialCapacity, loadFactor);
 	}
 	
 	/**
@@ -81,413 +72,236 @@ public class StringKeyChronicleCache  implements DeAllocateMe {
 	}
 	
 	
+
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.util.unsafe.DeAllocateMe#getAddresses()
+	 * @see org.helios.pag.store.IStringKeyCache#size()
 	 */
 	@Override
-	public long[] getAddresses() {
-		return new long[]{lockAddress};
-	}
-	
-	public static long initCnt = 0;
-	
-	/**
-	 * <p>Title: StringPointer</p>
-	 * <p>Description: Off heap representation of string to be used as a key in a {@link StringKeyChronicleCache}</p> 
-	 * <p>Company: Helios Development Group LLC</p>
-	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.pag.store.StringKeyChronicleCacheStringPointer</code></p>
-	 */
-	public static class StringPointer implements DeAllocateMe, OffHeapKey<String> {
-		/** The address of the StringPointer */
-		protected final long address;
-		
-		/** The offset of the represented string's hashcode */
-		public static final byte HASH_CODE = 0;
-		/** The offset of the represented string's byte length */
-		public static final byte LENGTH = HASH_CODE + UnsafeAdapter.INT_SIZE;
-		/** The offset of the represented string's bytes */
-		public static final byte BYTES = LENGTH + UnsafeAdapter.INT_SIZE;
-		
-		/** The size of the header in bytes */
-		public static final byte HEADER_SIZE = UnsafeAdapter.INT_SIZE*2;
-		
-		
-		/**
-		 * Creates a new StringPointer
-		 * @param s The stringy to pointerize
-		 */
-		public StringPointer(CharSequence s) {
-			if(s==null) throw new IllegalArgumentException("The passed charsequence was null");
-			initCnt++;
-			String _s = s.toString();
-			byte[] bytes = _s.getBytes(CHARSET);			
-			address = UnsafeAdapter.allocateAlignedMemory(bytes.length + HEADER_SIZE);
-			UnsafeAdapter.putInt(address + HASH_CODE, _s.hashCode());
-			UnsafeAdapter.putInt(address + LENGTH, bytes.length);
-			UnsafeAdapter.copyMemory(bytes, UnsafeAdapter.BYTE_ARRAY_OFFSET, null, address + BYTES, bytes.length);
-			UnsafeAdapter.registerForDeAlloc(this);
-		}
-		
-		
-		
-		/**
-		 * {@inheritDoc}
-		 * @see java.lang.Object#hashCode()
-		 */
-		@Override
-		public int hashCode() {
-			return UnsafeAdapter.getInt(address + HASH_CODE);
-		}
-		
-		/**
-		 * Determines if the passed StringPointer is equal to this one
-		 * @param sp The StringPointer to compare to this one
-		 * @return true if equal, false otherwise
-		 */
-		protected boolean equalsStringPointer(StringPointer sp) {
-			if(sp==null) return false;
-			int myLength = UnsafeAdapter.getInt(address + LENGTH);
-			int otherLength = UnsafeAdapter.getInt(sp.address + LENGTH);
-			if(myLength != otherLength) return false;
-			return UnsafeAdapter.compareTo(address, myLength, sp.address, otherLength);			
-		}
-		
-		/**
-		 * {@inheritDoc}
-		 * @see java.lang.Object#equals(java.lang.Object)
-		 */
-		@Override
-		public boolean equals(Object o) {
-			if(o==null) return false;
-			byte[] bytes = null;
-			if(o instanceof StringPointer) {
-				return equalsStringPointer((StringPointer)o);
-			}
-			if(o instanceof CharSequence) {
-				if(o instanceof String) {
-					bytes = ((String)o).getBytes(CHARSET);
-				} else {
-					bytes = ((CharSequence)o).toString().getBytes(CHARSET);
-				}
-				return UnsafeAdapter.byteArraysEqual(getBytes(), bytes);
-			}
-			return false;
-		}
-
-		
-		/**
-		 * Returns the byte content of this pointer
-		 * @return the byte content of this pointer
-		 */
-		public byte[] getBytes() {
-			return UnsafeAdapter.getByteArray(address + BYTES, getLength());
-		}
-		
-		/**
-		 * Returns the number of bytes for the string pointer's content
-		 * @return the number of bytes for the string pointer's content
-		 */
-		protected int getLength() {
-			return UnsafeAdapter.getInt(address + LENGTH);
-		}
-		
-		/**
-		 * <p>Dereferences the pointer</p>
-		 * {@inheritDoc}
-		 * @see java.lang.Object#toString()
-		 */
-		public String toString() {
-			return new String(getBytes(), CHARSET);
-		}
-		
-		
-		/**
-		 * {@inheritDoc}
-		 * @see org.helios.pag.util.unsafe.DeAllocateMe#getAddresses()
-		 */
-		@Override
-		public long[] getAddresses() {
-			return new long[]{address};
-		}
-		
-	}
-	
-	
-	/**
-	 * Sets the current StringPointer we're matching against in the current thread.
-	 * This avoids having to recreate the StringPointer over-and-over.
-	 * @param stringy The stringy to pointerize
-	 * @return The created string pointer
-	 */
-	private static StringPointer initCurrent(CharSequence stringy) {		
-		StringPointer sp = new StringPointer(stringy);
-//		CURRENT_STRING_MATCHER.set(sp);
-		return sp;
-	}
-	
-	/**
-	 * Removes the current thread's stringy StringPointer.
-	 */
-	private static void killCurrent() {
-//		CURRENT_STRING_MATCHER.remove();
-	}
-
-	/**
-	 * Returns the size of the cache
-	 * @return the size of the cache
-	 * @see gnu.trove.impl.hash.THash#size()
-	 */
 	public int size() {
 		try {
-			xlock(lockAddress);
+			lock.xlock();
 			return cache.size();
 		} finally {
-			xunlock(lockAddress);
+			lock.xunlock();
 		}
 	}
 
 	/**
-	 * Determines if the cache contains the passed stringy value
-	 * @param key The stringy to check for
-	 * @return true if found, false otherwise
-	 * @see gnu.trove.map.hash.TObjectLongHashMap#containsKey(java.lang.Object)
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.IStringKeyCache#containsKey(java.lang.CharSequence)
 	 */
+	@Override
 	public boolean containsKey(CharSequence key) {
 		if(key==null) return false;
 		try {			
-			xlock(lockAddress);
-			if(cache.isEmpty()) return false;
-			OffHeapKey<String> sp = strOffHeap(key);
-			return cache.containsKey(sp);
+			lock.xlock();
+			if(cache.isEmpty()) return false;			
+			return cache.containsKey(StringHelper.longHashCode(key.toString()));
 		} finally {
-			xunlock(lockAddress);
-			killCurrent();
+			lock.xunlock();
 		}
 	}
 	
 	/**
-	 * Clears the cache
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.IStringKeyCache#clear()
 	 */
+	@Override
 	public void clear() {
 		try {			
-			xlock(lockAddress);
+			lock.xlock();
 			cache.clear();
 		} finally {
-			xunlock(lockAddress);
-			killCurrent();
+			lock.xunlock();
 		}		
 	}
 	
-	private OffHeapKey<String> strOffHeap(CharSequence key) {
-		return OffHeapStringKey.lookupKey(key);
-	}
 
 	/**
-	 * Retrieves the long keyed by the passed stringy
-	 * @param key The stringy key
-	 * @return the located long or {@link #NO_ENTRY_VALUE}  if not found
-	 * @see gnu.trove.map.hash.TObjectLongHashMap#get(java.lang.Object)
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.IStringKeyCache#get(java.lang.CharSequence)
 	 */
+	@Override
 	public long get(CharSequence key) {
 		if(key==null) return NO_ENTRY_VALUE;
 		try {
-			//StringPointer sp = initCurrent(key);
-			
-			xlock(lockAddress);
+			lock.xlock();
 			if(cache.isEmpty()) return NO_ENTRY_VALUE;
-			OffHeapKey<String> sp = strOffHeap(key);
-			Long l = cache.get(sp);
-			if(l==null) return NO_ENTRY_VALUE;
-			return l.longValue();
+			return cache.get(StringHelper.longHashCode(key.toString()));
 		} finally {
-			xunlock(lockAddress);
-			killCurrent();
+			lock.xunlock();
 		}
 	}
 
 	/**
-	 * Inserts the passed key/value into the cache
-	 * @param key The stringy key
-	 * @param value The value
-	 * @return the previous value associated with they key or {@link #NO_ENTRY_VALUE} if there was no mapping for the key.
-	 * @see gnu.trove.map.hash.TObjectLongHashMap#put(java.lang.Object, long)
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.IStringKeyCache#put(java.lang.CharSequence, long)
 	 */
-	public void put(CharSequence key, long value) {
-		if(key==null) throw new IllegalArgumentException("The passed key was null");
+	@Override
+	public long put(CharSequence key, long value) {
+		if(key==null) throw new IllegalArgumentException("The passed key was null");		
 		try {
-			xlock(lockAddress);			
-			cache.put(new OffHeapStringKey(key), value);
+			lock.xlock();			
+			return cache.put(StringHelper.longHashCode(key.toString()), value);
 		} finally {
-			xunlock(lockAddress);
-			killCurrent();
+			lock.xunlock();
 		}
 	}
 	
 	/**
 	 * Unguarded direct put for bulk puts
-	 * @param sp The StringPointer key
+	 * @param key The key
 	 * @param value The long value
 	 * @return the previous value associated with they key or {@link #NO_ENTRY_VALUE} if there was no mapping for the key.
 	 */
-	protected long _put(OffHeapKey<?> sp, long value) {
-		return cache.put(sp, value);
+	protected long _put(CharSequence key, long value) {
+		return cache.put(StringHelper.longHashCode(key.toString()), value);
 	}
 
 	/**
-	 * Inserts the passed key/value into the cache if the key is not already bound
-	 * @param key The stringy key
-	 * @param value The value
-	 * @return the previous value associated with they key or {@link #NO_ENTRY_VALUE} if there was no mapping for the key.
-	 * @see gnu.trove.map.hash.TObjectLongHashMap#putIfAbsent(java.lang.Object, long)
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.IStringKeyCache#putIfAbsent(java.lang.CharSequence, long)
 	 */
+	@Override
 	public long putIfAbsent(CharSequence key, long value) {
 		if(key==null) throw new IllegalArgumentException("The passed key was null");
 		try {
-			OffHeapKey<?> sp = new OffHeapStringKey(key);
-			xlock(lockAddress);			
-			return cache.putIfAbsent(sp, value);
+			lock.xlock();			
+			return cache.putIfAbsent(StringHelper.longHashCode(key.toString()), value);
 		} finally {
-			xunlock(lockAddress);
-			killCurrent();
+			lock.xunlock();
 		}
 	}
 	
 	/**
-	 * Removes the mapping for a key from this map if it is present 
-	 * @param key The stringy key
-	 * @return the previous value associated with they key or {@link #NO_ENTRY_VALUE} if there was no mapping for the key.
-	 * @see gnu.trove.map.hash.TObjectLongHashMap#remove(java.lang.Object)
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.IStringKeyCache#remove(java.lang.CharSequence)
 	 */
+	@Override
 	public long remove(CharSequence key) {
 		if(key==null) throw new IllegalArgumentException("The passed key was null");
-		try {
-			
-			xlock(lockAddress);			
-			return cache.remove(strOffHeap(key));
+		try {			
+			lock.xlock();			
+			return cache.remove(StringHelper.longHashCode(key.toString()));
 		} finally {
-			xunlock(lockAddress);
-			killCurrent();
+			lock.xunlock();
 		}
 	}
 
 	
 	/**
-	 * Inserts the passed map of values into the cache
-	 * @param map a map of stringy keys and long values
-	 * @see gnu.trove.map.hash.TObjectLongHashMap#putAll(java.util.Map)
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.IStringKeyCache#putAll(java.util.Map)
 	 */
+	@Override
 	public void putAll(Map<? extends CharSequence, ? extends Long> map) {
 		if(map==null) throw new IllegalArgumentException("The passed map was null");
-		if(map.isEmpty()) return;		
+		if(map.isEmpty()) return;
 		try {			
-			xlock(lockAddress);
+			lock.xlock();
 			for(Map.Entry<? extends CharSequence, ? extends Long> entry: map.entrySet()) {
-				_put(strOffHeap(entry.getKey()), entry.getValue().longValue());
+				_put(entry.getKey(), entry.getValue().longValue());
 			}
 		} finally {
-			xunlock(lockAddress);
-			killCurrent();
+			lock.xunlock();
 		}
 	}
 
-//	/**
-//	 * Adjusts the primitive value mapped to the key if the key is present in the map.
-//	 * @param key The stringy key
-//	 * @param value The value
-//	 * @return true if a mapping was found and modified.
-//	 * @see gnu.trove.map.hash.TObjectLongHashMap#adjustValue(java.lang.Object, long)
-//	 */
-//	public boolean adjustValue(CharSequence key, long value) {
-//		if(key==null) throw new IllegalArgumentException("The passed key was null");		
-//		try {			
-//			StringPointer sp = initCurrent(key);
-//			xlock(lockAddress);
-//			return cache.adjustValue(sp, value);
-//		} finally {
-//			xunlock(lockAddress);
-//			killCurrent();
-//		}
-//	}
+	/**
+	 * Adjusts the primitive value mapped to the key if the key is present in the map.
+	 * @param key The stringy key
+	 * @param value The value
+	 * @return true if a mapping was found and modified.
+	 * @see gnu.trove.map.hash.TObjectLongHashMap#adjustValue(java.lang.Object, long)
+	 */
+	public boolean adjustValue(CharSequence key, long value) {
+		if(key==null) throw new IllegalArgumentException("The passed key was null");		
+		try {						
+			lock.xlock();
+			return cache.adjustValue(StringHelper.longHashCode(key.toString()), value);
+		} finally {
+			lock.xunlock();			
+		}
+	}
 
-//	/**
-//	 * Compresses the cache to the minimum prime size 
-//	 * @see gnu.trove.impl.hash.THash#trimToSize()
-//	 */
-//	public final void trimToSize() {
-//		try {
-//			xlock(lockAddress);			
-//			cache.trimToSize();
-//		} finally {
-//			xunlock(lockAddress);
-//		}
-//	}
-//	
-//
-//    /**
-//     * The auto-compaction factor controls whether and when a table performs a
-//     * {@link THash#compact} automatically after a certain number of remove operations.
-//     * If the value is non-zero, the number of removes that need to occur for
-//     * auto-compaction is the size of table at the time of the previous compaction
-//     * (or the initial capacity) multiplied by this factor.
-//     * <p/>
-//     * Setting this value to zero will disable auto-compaction.
-//     * @param factor a <tt>float</tt> that indicates the auto-compaction factor
-//     * @see gnu.trove.impl.hash.THash#setAutoCompactionFactor(float)
-//     */
-//
-//	public void setAutoCompactionFactor(float factor) {
-//		try {
-//			xlock(lockAddress);			
-//			cache.setAutoCompactionFactor(factor);
-//		} finally {
-//			xunlock(lockAddress);
-//		}
-//	}
-//
-//
-//	/**
-//	 * Returns the cache's auto compaction factor
-//	 * @return a <<tt>float</tt> that represents the auto-compaction factor.
-//	 * @see gnu.trove.impl.hash.THash#getAutoCompactionFactor()
-//	 */
-//	public float getAutoCompactionFactor() {
-//		try {
-//			xlock(lockAddress);			
-//			return cache.getAutoCompactionFactor();
-//		} finally {
-//			xunlock(lockAddress);
-//		}
-//	}
-//
-//
-//	/**
-//	 * Temporarily disables auto-compaction. MUST be followed by calling {@link #reenableAutoCompaction}.
-//	 * @see gnu.trove.impl.hash.THash#tempDisableAutoCompaction()
-//	 */
-//	public void tempDisableAutoCompaction() {
-//		try {
-//			xlock(lockAddress);			
-//			cache.tempDisableAutoCompaction();
-//		} finally {
-//			xunlock(lockAddress);
-//		}
-//	}
-//
-//	/**
-//     * Re-enable auto-compaction after it was disabled via {@link #tempDisableAutoCompaction()}.     
-//     * @param check_for_compaction True if compaction should be performed if needed
-//     * before returning. If false, no compaction will be performed.
-//	 * @see gnu.trove.impl.hash.THash#reenableAutoCompaction(boolean)
-//	 */
-//	public void reenableAutoCompaction(boolean check_for_compaction) {
-//		try {
-//			xlock(lockAddress);			
-//			cache.reenableAutoCompaction(check_for_compaction);
-//		} finally {
-//			xunlock(lockAddress);
-//		}				
-//	}
+	/**
+	 * Compresses the cache to the minimum prime size 
+	 * @see gnu.trove.impl.hash.THash#trimToSize()
+	 */
+	public final void trimToSize() {
+		try {
+			lock.xlock();			
+			cache.trimToSize();
+		} finally {
+			lock.xunlock();
+		}
+	}
+	
+
+    /**
+     * The auto-compaction factor controls whether and when a table performs a
+     * compaction automatically after a certain number of remove operations.
+     * If the value is non-zero, the number of removes that need to occur for
+     * auto-compaction is the size of table at the time of the previous compaction
+     * (or the initial capacity) multiplied by this factor.
+     * <p/>
+     * Setting this value to zero will disable auto-compaction.
+     * @param factor a <tt>float</tt> that indicates the auto-compaction factor
+     * @see gnu.trove.impl.hash.THash#setAutoCompactionFactor(float)
+     */
+
+	public void setAutoCompactionFactor(float factor) {
+		try {
+			lock.xlock();			
+			cache.setAutoCompactionFactor(factor);
+		} finally {
+			lock.xunlock();
+		}
+	}
+
+
+	/**
+	 * Returns the cache's auto compaction factor
+	 * @return a <<tt>float</tt> that represents the auto-compaction factor.
+	 * @see gnu.trove.impl.hash.THash#getAutoCompactionFactor()
+	 */
+	public float getAutoCompactionFactor() {
+		try {
+			lock.xlock();			
+			return cache.getAutoCompactionFactor();
+		} finally {
+			lock.xunlock();
+		}
+	}
+
+
+	/**
+	 * Temporarily disables auto-compaction. MUST be followed by calling {@link #reenableAutoCompaction}.
+	 * @see gnu.trove.impl.hash.THash#tempDisableAutoCompaction()
+	 */
+	public void tempDisableAutoCompaction() {
+		try {
+			lock.xlock();			
+			cache.tempDisableAutoCompaction();
+		} finally {
+			lock.xunlock();
+		}
+	}
+
+	/**
+     * Re-enable auto-compaction after it was disabled via {@link #tempDisableAutoCompaction()}.     
+     * @param check_for_compaction True if compaction should be performed if needed
+     * before returning. If false, no compaction will be performed.
+	 * @see gnu.trove.impl.hash.THash#reenableAutoCompaction(boolean)
+	 */
+	public void reenableAutoCompaction(boolean check_for_compaction) {
+		try {
+			lock.xlock();			
+			cache.reenableAutoCompaction(check_for_compaction);
+		} finally {
+			lock.xunlock();
+		}				
+	}
 
 }

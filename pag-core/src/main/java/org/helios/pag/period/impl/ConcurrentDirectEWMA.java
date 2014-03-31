@@ -27,8 +27,7 @@ package org.helios.pag.period.impl;
 import java.util.Date;
 
 import org.helios.pag.util.unsafe.UnsafeAdapter;
-import org.helios.pag.util.unsafe.UnsafeAdapter.DoubleCallable;
-import org.helios.pag.util.unsafe.UnsafeAdapter.LongCallable;
+import org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock;
 
 /**
  * <p>Title: ConcurrentDirectEWMA</p>
@@ -39,19 +38,15 @@ import org.helios.pag.util.unsafe.UnsafeAdapter.LongCallable;
  */
 
 public class ConcurrentDirectEWMA extends DirectEWMA {
-
-	/** The offset of the spin lock */
-	public final static byte XLOCK = AVERAGE + UnsafeAdapter.LONG_SIZE;
-	/** The total memory allocation  */
-	public final static byte CTOTAL = XLOCK + UnsafeAdapter.DOUBLE_SIZE;
+	/** The spin lock to guard the EWMA */
+	protected final SpinLock lock = UnsafeAdapter.allocateSpinLock();
 
 	/**
 	 * Creates a new ConcurrentDirectEWMA
 	 * @param windowSize The length of the sliding window in ms.
 	 */
 	public ConcurrentDirectEWMA(long windowSize) {
-		super(windowSize, CTOTAL);
-		UnsafeAdapter.putLong(address + XLOCK, UnsafeAdapter.NO_LOCK);
+		super(windowSize, TOTAL);		
 	}
 
 	/**
@@ -59,12 +54,22 @@ public class ConcurrentDirectEWMA extends DirectEWMA {
 	 * @return the timestamp of the last sample 
 	 */
 	public long getLastSample() {
-		return UnsafeAdapter.runInLock(address + XLOCK,  new LongCallable() {
-			@Override
-			public long longCall() {
-				return UnsafeAdapter.getLong(address + LAST_SAMPLE);
-			}
-		});
+		lock.xlock();
+		try {
+			return UnsafeAdapter.getLong(address[0] + LAST_SAMPLE);
+		} finally {
+			lock.xunlock();
+		}
+	}
+	
+	@Override
+	public void append(double sample) {
+		lock.xlock();
+		try {
+			super.append(sample);
+		} finally {
+			lock.xunlock();
+		}
 	}
 	
 	/**
@@ -72,12 +77,12 @@ public class ConcurrentDirectEWMA extends DirectEWMA {
 	 * @return the last computed average 
 	 */
 	public double getAverage() {
-		return UnsafeAdapter.runInLock(address + XLOCK,  new DoubleCallable() {
-			@Override
-			public double doubleCall() {
-				return UnsafeAdapter.getDouble(address + AVERAGE);
-			}
-		});
+		lock.xlock();
+		try {
+			return UnsafeAdapter.getDouble(address[0] + AVERAGE);
+		} finally {
+			lock.xunlock();
+		}
 	}
 	
 	/**
@@ -87,13 +92,13 @@ public class ConcurrentDirectEWMA extends DirectEWMA {
 	@Override
 	public String toString() {
 		final StringBuilder b = new StringBuilder("EWMA [");
-		UnsafeAdapter.runInLock(address + XLOCK, new Runnable() {
-			public void run() {
-				b.append("ts:").append(new Date(UnsafeAdapter.getLong(address + LAST_SAMPLE)));
-				b.append(", avg:").append(UnsafeAdapter.getDouble(address + AVERAGE));				
-			}
-		});
-		b.append("]");		
+		lock.xlock();
+		try {
+			b.append("ts:").append(new Date(UnsafeAdapter.getLong(address[0] + LAST_SAMPLE)));
+			b.append(", avg:").append(UnsafeAdapter.getDouble(address[0] + AVERAGE));				
+		} finally {
+			lock.xunlock();
+		}
 		return b.append("]").toString();
 	}
 	

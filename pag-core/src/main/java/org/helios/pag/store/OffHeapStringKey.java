@@ -39,7 +39,7 @@ import org.helios.pag.util.unsafe.UnsafeAdapter;
 
 public class OffHeapStringKey implements OffHeapKey<String>,  DeAllocateMe {
 	/** The address of the StringPointer */
-	protected final long address;
+	protected final long[] address = new long[1];
 	
 	/** The offset of the represented string's hashcode */
 	public static final byte HASH_CODE = 0;
@@ -63,10 +63,10 @@ public class OffHeapStringKey implements OffHeapKey<String>,  DeAllocateMe {
 		if(s==null) throw new IllegalArgumentException("The passed charsequence was null");
 		String _s = s.toString();
 		byte[] bytes = _s.getBytes(CHARSET);			
-		address = UnsafeAdapter.allocateAlignedMemory(bytes.length + HEADER_SIZE);
-		UnsafeAdapter.putInt(address + HASH_CODE, _s.hashCode());
-		UnsafeAdapter.putInt(address + LENGTH, bytes.length);
-		UnsafeAdapter.copyMemory(bytes, UnsafeAdapter.BYTE_ARRAY_OFFSET, null, address + BYTES, bytes.length);
+		address[0] = UnsafeAdapter.allocateAlignedMemory(bytes.length + HEADER_SIZE);
+		UnsafeAdapter.putInt(address[0] + HASH_CODE, _s.hashCode());
+		UnsafeAdapter.putInt(address[0] + LENGTH, bytes.length);
+		UnsafeAdapter.copyMemory(bytes, UnsafeAdapter.BYTE_ARRAY_OFFSET, null, address[0] + BYTES, bytes.length);
 		UnsafeAdapter.registerForDeAlloc(this);
 	}
 
@@ -76,8 +76,8 @@ public class OffHeapStringKey implements OffHeapKey<String>,  DeAllocateMe {
 	 * @see org.helios.pag.util.unsafe.DeAllocateMe#getAddresses()
 	 */
 	@Override
-	public long[] getAddresses() {
-		return new long[]{address};
+	public long[][] getAddresses() {
+		return new long[][]{address};
 	}
 	
 	/**
@@ -86,7 +86,7 @@ public class OffHeapStringKey implements OffHeapKey<String>,  DeAllocateMe {
 	 */
 	@Override
 	public int hashCode() {
-		return UnsafeAdapter.getInt(address + HASH_CODE);
+		return UnsafeAdapter.getInt(address[0] + HASH_CODE);
 	}
 	
 	/**
@@ -106,7 +106,7 @@ public class OffHeapStringKey implements OffHeapKey<String>,  DeAllocateMe {
 	 * @see org.helios.pag.store.OffHeapKey#getBytes()
 	 */
 	public byte[] getBytes() {
-		return UnsafeAdapter.getByteArray(address + BYTES, getLength());
+		return UnsafeAdapter.getByteArray(address[0] + BYTES, getLength());
 	}
 
 	/**
@@ -114,7 +114,7 @@ public class OffHeapStringKey implements OffHeapKey<String>,  DeAllocateMe {
 	 * @return the number of bytes for the string pointer's content
 	 */
 	protected int getLength() {
-		return UnsafeAdapter.getInt(address + LENGTH);
+		return UnsafeAdapter.getInt(address[0] + LENGTH);
 	}
 	
 	/**
