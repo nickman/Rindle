@@ -26,6 +26,8 @@ package org.helios.pag.store;
 
 import java.nio.CharBuffer;
 
+import javassist.ByteArrayClassPath;
+
 import org.helios.pag.util.unsafe.DeAllocateMe;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 
@@ -108,10 +110,24 @@ public class OffHeapCharSequenceKey implements DeAllocateMe, CharSequence {
 	public boolean equals(Object other) {
 		if(other==null) return false;
 		if(!(other instanceof CharSequence)) return false;
-		if(hashCode() != other.hashCode()) return false;
-		if(length() != ((CharSequence)other).length()) return false;
-		CharSequence cs = (CharSequence)other;
-		return UnsafeAdapter.compareTo(address[0] + CHARS, length(), UnsafeAdapter.getAddressOf(CharBuffer.allocate(cs.length()).append(cs).array()) + UnsafeAdapter.CHAR_ARRAY_OFFSET, cs.length());
+		if(other instanceof OffHeapCharSequenceKey) {
+			OffHeapCharSequenceKey otherKey = (OffHeapCharSequenceKey)other;
+			if(hashCode()!=otherKey.hashCode()) return false;
+			if(length()!=otherKey.length()) return false;
+			return UnsafeAdapter.compareTo(address[0], length(), otherKey.address[0], length());
+		} 
+		return this.toString().equals(other.toString());
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#toString()
+	 */
+	@Override
+	public String toString() {
+		char[] chars = new char[length()];
+		UnsafeAdapter.copyMemory(null, address[0] + CHARS, chars, UnsafeAdapter.CHAR_ARRAY_OFFSET, length() * 2);
+		return new String(chars);
 	}
 	
 

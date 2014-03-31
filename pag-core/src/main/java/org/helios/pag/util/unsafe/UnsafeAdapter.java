@@ -4,11 +4,16 @@
 package org.helios.pag.util.unsafe;
 
 
+import java.io.File;
+import java.io.RandomAccessFile;
+import java.lang.management.ManagementFactory;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.ByteOrder;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,7 +31,6 @@ import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.pag.Constants;
 import org.helios.pag.util.JMXHelper;
 import org.helios.pag.util.StringHelper;
-import org.helios.pag.util.unsafe.collections.LongSlidingWindow;
 
 import sun.misc.Unsafe;
 
@@ -81,6 +85,9 @@ public class UnsafeAdapter {
     
     /** The maximum size of a memory allocation request which can be aligned */
     public static final long MAX_ALIGNED_MEM = 1073741824;   // 1,073,741,824
+    
+    /** The JVM's OS Process ID (PID) */
+    public static final long JVM_PID = Long.parseLong(ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
     
     
     
@@ -1928,6 +1935,9 @@ public class UnsafeAdapter {
 	/** The spin lock value for a shared/read lock */
 	public static final long SHARED_LOCK = -2L;
 	
+	/** The disk spin lock value for no lock */
+	public static final PIDThread NO_DISK_LOCK = new PIDThread();	
+	
 	/**
 	 * Allocates an initialized and initially unlocked memory based spin lock
 	 * @return the spin lock
@@ -1941,13 +1951,26 @@ public class UnsafeAdapter {
 	/**
 	 * Acquires the lock at the passed address exclusively
 	 * @param address The address of the lock
+	 * @param barge If true, does not yield between locking attempts. Should only be used by 
+	 * a small number of high priority threads, otherwise has no effect.  
+	 * @return true if the lock was acquired, false if it was already held by the calling thread
+	 */
+	public static boolean xlock(final long address, boolean barge) {
+		final long tId = Thread.currentThread().getId();
+		if(getLong(address)==tId) return false;
+		while(!compareAndSwapLong(null, address, NO_LOCK, tId)) {if(!barge) Thread.yield();}
+		return true;
+	}
+	
+	/**
+	 * Acquires the lock at the passed address exclusively with no barging
+	 * @param address The address of the lock
+	 * @param barge If true, does not yield between locking attempts. Should only be used by 
+	 * a small number of high priority threads, otherwise has no effect.  
 	 * @return true if the lock was acquired, false if it was already held by the calling thread
 	 */
 	public static boolean xlock(final long address) {
-		final long tId = Thread.currentThread().getId();
-		if(getLong(address)==tId) return false;
-		while(!compareAndSwapLong(null, address, NO_LOCK, tId)) {/* No Op */}
-		return true;
+		return xlock(address, false);
 	}
 	
 	/**
@@ -1974,6 +1997,14 @@ public class UnsafeAdapter {
 		public void xlock();
 		
 		/**
+		 * Acquires the lock with the calling thread
+		 * @param barge  If true, does not yield between locking attempts. Should only be used by 
+     	 * a small number of high priority threads, otherwise has no effect.  
+		 */
+		public void xlock(boolean barge);
+		
+		
+		/**
 		 * Releases the lock if it is held by the calling thread
 		 */
 		public void xunlock();
@@ -1982,7 +2013,7 @@ public class UnsafeAdapter {
 	
 	/**
 	 * <p>Title: MemSpinLock</p>
-	 * <p>Description: Unsafe spin lock</p> 
+	 * <p>Description: Unsafe memory based spin lock for use withing JVM only</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
 	 * <p><code>org.helios.pag.util.unsafe.UnsafeAdapter.MemSpinLock</code></p>
@@ -2025,11 +2056,172 @@ public class UnsafeAdapter {
 		}
 		
 		/**
+		 * {@inheritDoc}
+		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock#xlock(boolean)
+		 */
+		@Override
+		public void xlock(boolean barge) {
+			UnsafeAdapter.xlock(address, barge);
+		}
+		
+		/**
 		 * Releases the lock if it is held by the calling thread
 		 */
 		public void xunlock() {
 			UnsafeAdapter.xunlock(address);
 		}
+	}
+	
+	/**
+	 * <p>Title: MemSpinLock</p>
+	 * <p>Description: Disk based spin lock that is sharable with other processes</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>org.helios.pag.util.unsafe.UnsafeAdapter.DiskSpinLock</code></p>
+	 * FIXME: 
+	 */
+
+	public static class DiskSpinLock implements SpinLock, DeAllocateMe {
+		/** The lock file name */
+		protected final File diskFile;
+		/** The mapped lock file address */
+		protected final long address;
+		/**
+		 * Creates a new MemSpinLock
+		 * @param address The address of the lock
+		 */
+		private DiskSpinLock() {
+			try {
+				diskFile = File.createTempFile("DiskSpinLock", ".spinlock");
+				diskFile.deleteOnExit();
+				FileChannel fc = new RandomAccessFile(diskFile, "rw").getChannel();
+				MappedByteBuffer mbb = fc.map(FileChannel.MapMode.READ_WRITE, 0, LONG_SIZE * 2);
+				address =  ((sun.nio.ch.DirectBuffer) mbb).address();
+			} catch (Exception ex) {
+				throw new RuntimeException("Failed to allocate disk lock", ex);
+			}
+			
+		}
+
+		/**
+		 * Returns the lock address
+		 * @return the lock address
+		 */
+		public long address() {
+			return address;
+		}
+		
+		/**
+		 * Returns the fully qualified file name of the disk lock
+		 * @return the fully qualified file name of the disk lock
+		 */
+		public String getFileName() {
+			return diskFile.getAbsolutePath();
+		}
+		
+		
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.pag.util.unsafe.DeAllocateMe#getAddresses()
+		 */
+		@Override
+		public long[][] getAddresses() {
+			return new long[][] {{address}};
+		}
+
+		/**
+		 * Acquires the lock with the calling thread
+		 */
+		@Override
+		public void xlock() {
+			xlock(false);
+		}
+		
+/**
+		 * {@inheritDoc}
+		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock#xlock(boolean)
+		 */
+		@Override
+		public void xlock(boolean barge) {
+			final long tId = Thread.currentThread().getId();
+			while(!compareAndSwapLong(null, address, NO_LOCK, JVM_PID)) { if(!barge) Thread.yield(); }
+			while(!compareAndSwapLong(null, address + LONG_SIZE, NO_LOCK, tId)) { if(!barge) Thread.yield(); }
+		}		
+		
+		/**
+		 * Releases the lock if it is held by the calling thread
+		 */
+		@Override
+		public void xunlock() {
+			final long tId = Thread.currentThread().getId();
+			if(getLong(address)==JVM_PID  &&  getLong(address + LONG_SIZE)==tId) {
+				compareAndSwapLong(null, address + LONG_SIZE, tId, NO_LOCK);
+				compareAndSwapLong(null, address, JVM_PID, NO_LOCK);
+			}
+		}
+	}
+	
+	
+	
+	/**
+	 * <p>Title: PIDThread</p>
+	 * <p>Description: </p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>org.helios.pag.util.unsafe.UnsafeAdapter.PIDThread</code></p>
+	 */
+	public static class PIDThread {
+		public final long threadId;
+		public final long pid;
+		
+		private PIDThread(long threadId) {
+			this.threadId = threadId;
+			pid = JVM_PID;
+		}
+		
+		private PIDThread() {
+			this.threadId = NO_LOCK;
+			this.pid = -1;
+		}
+		
+		public String toString() {
+			return String.format("%s@%s", threadId, pid);
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Object#hashCode()
+		 */
+		@Override
+		public int hashCode() {
+			final int prime = 31;
+			int result = 1;
+			result = prime * result + (int) (pid ^ (pid >>> 32));
+			result = prime * result + (int) (threadId ^ (threadId >>> 32));
+			return result;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Object#equals(java.lang.Object)
+		 */
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj)
+				return true;
+			if (obj == null)
+				return false;
+			if (getClass() != obj.getClass())
+				return false;
+			PIDThread other = (PIDThread) obj;
+			if (pid != other.pid)
+				return false;
+			if (threadId != other.threadId)
+				return false;
+			return true;
+		}
+		
+		
 	}
 	
 	

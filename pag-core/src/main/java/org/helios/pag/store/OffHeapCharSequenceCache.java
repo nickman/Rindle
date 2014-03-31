@@ -50,6 +50,17 @@ public class OffHeapCharSequenceCache implements IStringKeyCache {
 	public OffHeapCharSequenceCache(int initialCapacity, float factor) {
 		cache = new NonBlockingHashMap<OffHeapCharSequenceKey, Long>(initialCapacity);
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.IStringKeyCache#trimToSize()
+	 */
+	@Override
+	public void trimToSize() {
+		for(Map.Entry<OffHeapCharSequenceKey, Long> entry: cache.entrySet()) {
+			if(entry.getValue()==NO_ENTRY_VALUE) cache.remove(entry.getKey());
+		}
+	}
 
 	/**
 	 * {@inheritDoc}

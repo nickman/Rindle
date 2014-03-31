@@ -59,12 +59,36 @@ public class ChronicleConfiguration {
 	public final File dataDir;
 	/** The unsafe option for chronicles */
 	public final boolean unsafe;
+	/** The initial capacity of the name cache fronting the chronicle cache */
+	public final int nameCacheInitialCapacity;
+	/** The load factory of the name cache fronting the chronicle cache */
+	public final float nameCacheLoadFactor;
+	
+	
+	/** The initial capacity of the opaque key cache fronting the chronicle cache */
+	public final int opaqueCacheInitialCapacity;
+	/** The load factory of the opaque key cache fronting the chronicle cache */
+	public final float opaqueCacheLoadFactor;
+	
+//	public static final String CHRONICLE_NAME_CACHE_INITIAL_CAPACITY = "helios.pag.store.chronicle.namecache.initialcap";
+//    public static final int DEFAULT_CHRONICLE_NAME_CACHE_INITIAL_CAPACITY = 1024;
+//	public static final String CHRONICLE_NAME_CACHE_LOAD_FACTOR = "helios.pag.store.chronicle.namecache.loadfactor";
+//    public static final float DEFAULT_CHRONICLE_NAME_CACHE_LOAD_FACTOR = 0.75f;
+//	public static final String CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY = "helios.pag.store.chronicle.opaquecache.initialcap";
+//    public static final int DEFAULT_CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY = 1024;
+//	public static final String CHRONICLE_OPAQUE_CACHE_LOAD_FACTOR = "helios.pag.store.chronicle.opaquecache.loadfactor";
+//    public static final float DEFAULT_OPAQUE_NAME_CACHE_LOAD_FACTOR = 0.75f;
+	
 
 	/**
 	 * Creates a new ChronicleConfiguration
 	 */
-	public ChronicleConfiguration() {
-		// Chronicle direct won't work unless UnsafeAdapter.FIVE_COPY is true. 
+	public ChronicleConfiguration() {		 
+		nameCacheInitialCapacity = ConfigurationHelper.getIntSystemThenEnvProperty(Constants.CHRONICLE_NAME_CACHE_INITIAL_CAPACITY, Constants.DEFAULT_CHRONICLE_NAME_CACHE_INITIAL_CAPACITY);
+		nameCacheLoadFactor = ConfigurationHelper.getFloatSystemThenEnvProperty(Constants.CHRONICLE_NAME_CACHE_LOAD_FACTOR, Constants.DEFAULT_CHRONICLE_NAME_CACHE_LOAD_FACTOR);
+		opaqueCacheInitialCapacity = ConfigurationHelper.getIntSystemThenEnvProperty(Constants.CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY, Constants.DEFAULT_CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY);
+		opaqueCacheLoadFactor = ConfigurationHelper.getFloatSystemThenEnvProperty(Constants.CHRONICLE_OPAQUE_CACHE_LOAD_FACTOR, Constants.DEFAULT_CHRONICLE_OPAQUE_CACHE_LOAD_FACTOR);
+		// Chronicle direct won't work unless UnsafeAdapter.FIVE_COPY is true.
 		unsafe = UnsafeAdapter.FIVE_COPY ? ConfigurationHelper.getBooleanSystemThenEnvProperty(Constants.CHRONICLE_UNSAFE_PROP, Constants.DEFAULT_CHRONICLE_UNSAFE ) : false;
 		dataDir = new File(ConfigurationHelper.getSystemThenEnvProperty(Constants.CHRONICLE_DIR, Constants.DEFAULT_CHRONICLE_DIR));
 		if(!dataDir.exists()) {

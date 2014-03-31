@@ -35,6 +35,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.helios.pag.util.StringHelper;
 import org.helios.pag.util.unsafe.DeAllocateMe;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
+import org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock;
 
 import com.higherfrequencytrading.chronicle.Excerpt;
 import com.higherfrequencytrading.chronicle.impl.IndexedChronicle;
@@ -47,75 +48,111 @@ import com.higherfrequencytrading.chronicle.impl.IndexedChronicle;
  * <p><code>org.helios.pag.store.ChronicleCache</code></p>
  */
 
-public class ChronicleCache implements DeAllocateMe {
+public class ChronicleCache {
 	/** The singleton instance */
-	private static final Map<String, ChronicleCache> chronicles = new NonBlockingHashMap<String, ChronicleCache>(32);
+	private static volatile ChronicleCache instance = null;
+	/** The singleton instance ctor lock */
+	private static final Object lock = new Object();
+	
+	
+	/** The write guarding spin lock */
+	protected final SpinLock writeSpinLock = UnsafeAdapter.allocateSpinLock();
 
+	
+	
 	/** The general config for chronicles */
 	protected final ChronicleConfiguration config = new ChronicleConfiguration();
 	
-	/** The store name */
-	protected final String name;
+	/** The string key cache to keep metric names synchronized with */
+	protected final IStringKeyCache nameCache;
+	/** The opaque key cache to keep metric names synchronized with */
+	protected final IByteArrayKeyCache opaqueCache;
+	
+	
 	/** The store name index chronicle */
 	protected final IndexedChronicle indexedChronicle;
-	/** The store chronicle writer excerpt */
-	protected final Excerpt chronicleWriter;
-	/** The address of the global lock for this instance's chronicle writer */
-	protected final long[] globalLockAddress = new long[1];
+	/** This instance's chronicle writer */
+	protected final ChronicleCacheWriter writer; 
 	
 	/** Instance logger */
 	protected final Logger log;
 	
 	/**
-	 * Acquires the named ChronicleCache instance
-	 * @param cacheName The name of the cache to retrieve
+	 * Acquires the ChronicleCache instance
 	 * @return the singleton ChronicleCache instance
 	 */
-	public static ChronicleCache getInstance(String cacheName) {
-		ChronicleCache cache = chronicles.get(cacheName);		
-		if(cache==null) {
-			synchronized(chronicles) {
-				if(cache==null) {
-					cache = new ChronicleCache(cacheName);
-					chronicles.put(cacheName, cache);
+	public static ChronicleCache getInstance() {
+		if(instance==null) {
+			synchronized(lock) {
+				if(instance==null) {
+					instance = new ChronicleCache();
 				}
 			}
 		}
-		return cache;
+		return instance;
 	}
 
 	/**
 	 * Creates a new ChronicleCache
 	 * @param cacheName The logical name of this chronicle store
 	 */
-	private ChronicleCache(String cacheName) {
-		this.name = cacheName;
-		log = LogManager.getLogger(getClass().getName() + "." + cacheName);
+	private ChronicleCache() {
+		log = LogManager.getLogger(getClass());
 		String fileName = null;
 		try {
-			fileName = config.dataDir.getAbsolutePath() + File.separator + name;
+			fileName = config.dataDir.getAbsolutePath() + File.separator + "MetricCache";
 			indexedChronicle = new IndexedChronicle(fileName, 1, ByteOrder.nativeOrder(), true, false);
 			indexedChronicle.useUnsafe(config.unsafe);
 			indexedChronicle.multiThreaded(true);
-			chronicleWriter = indexedChronicle.createExcerpt();
-			globalLockAddress[0] = UnsafeAdapter.allocateAlignedMemory(UnsafeAdapter.LONG_SIZE);
-			UnsafeAdapter.registerForDeAlloc(this);
-			log.info(StringHelper.banner("Created ChronicleCache [%s]", name));
+			indexedChronicle.setEnumeratedMarshaller(new ChronicleCacheEntryMarshaller(writeSpinLock));
+			nameCache = new StringKeyChronicleCache(config.nameCacheInitialCapacity, config.nameCacheLoadFactor);
+			opaqueCache = new ByteArrayKeyChronicleCache(config.opaqueCacheInitialCapacity, config.opaqueCacheLoadFactor);
+			writer = new ChronicleCacheWriter(indexedChronicle, writeSpinLock, nameCache, opaqueCache);
+			log.info(StringHelper.banner("Created ChronicleCache"));
 		} catch (IOException e) {
-			String msg = "Failed to create IndexedChronicle [" + cacheName + "] in [" + fileName + "]";
+			String msg = "Failed to create IndexedChronicle in [" + fileName + "]";
 			log.error(msg, e);
 			throw new RuntimeException(msg, e);
 		}
 	}
+	
+	Excerpt newExcerpt() {
+		return indexedChronicle.createExcerpt();
+	}
+	
+	protected void load() {
+		Excerpt exc = indexedChronicle.createExcerpt();
+		long loadCount = 0;
+		while(exc.hasNextIndex()) {
+			if(!exc.nextIndex()) break;
+			
+		}
+	}
 
 	/**
-	 * {@inheritDoc}
-	 * @see org.helios.pag.util.unsafe.DeAllocateMe#getAddresses()
+	 * Returns the 
+	 * @return the writer
 	 */
-	@Override
-	public long[][] getAddresses() {
-		return new long[][]{globalLockAddress};
+	public ChronicleCacheWriter getWriter() {
+		return writer;
 	}
+
+	/**
+	 * Returns the 
+	 * @return the nameCache
+	 */
+	public IStringKeyCache getNameCache() {
+		return nameCache;
+	}
+
+	/**
+	 * Returns the 
+	 * @return the opaqueCache
+	 */
+	public IByteArrayKeyCache getOpaqueCache() {
+		return opaqueCache;
+	}
+
 	
 	
 	/*

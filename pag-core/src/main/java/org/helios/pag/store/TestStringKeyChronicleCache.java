@@ -69,6 +69,7 @@ public class TestStringKeyChronicleCache {
 		ConcurrentHashMap<String, Long> map = new ConcurrentHashMap<String, Long>(sampleSize);
 //		ConcurrentHashMap<StringPointer, Long> cache = new ConcurrentHashMap<StringPointer, Long>(sampleSize);
 		StringKeyChronicleCache cache = new StringKeyChronicleCache(sampleSize);
+//		OffHeapCharSequenceCache cache = new OffHeapCharSequenceCache(sampleSize, 0.75f);
 		ElapsedTime et = SystemClock.startClock();
 		for(int i = 0; i < sampleSize; i++) {
 			map.put(samples[i], (long)i);

@@ -113,7 +113,23 @@ public class Constants {
     /** The default chronicle unsafe excerpt setting */
     public static final boolean DEFAULT_CHRONICLE_UNSAFE = false;
 	
+	/** The config property name to specify the chronicle metric name pre-cache initial capacity */
+	public static final String CHRONICLE_NAME_CACHE_INITIAL_CAPACITY = "helios.pag.store.chronicle.namecache.initialcap";
+    /** The default chronicle metric name pre-cache initial capacity */
+    public static final int DEFAULT_CHRONICLE_NAME_CACHE_INITIAL_CAPACITY = 1024;
+	/** The config property name to specify the chronicle metric name pre-cache load factor */
+	public static final String CHRONICLE_NAME_CACHE_LOAD_FACTOR = "helios.pag.store.chronicle.namecache.loadfactor";
+    /** The default chronicle metric name pre-cache initial capacity */
+    public static final float DEFAULT_CHRONICLE_NAME_CACHE_LOAD_FACTOR = 0.75f;
 	
+	/** The config property name to specify the chronicle metric opaque key pre-cache initial capacity */
+	public static final String CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY = "helios.pag.store.chronicle.opaquecache.initialcap";
+    /** The default chronicle metric opaque key pre-cache initial capacity */
+    public static final int DEFAULT_CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY = 1024;
+	/** The config property name to specify the chronicle metric opaque key pre-cache load factor */
+	public static final String CHRONICLE_OPAQUE_CACHE_LOAD_FACTOR = "helios.pag.store.chronicle.opaquecache.loadfactor";
+    /** The default chronicle metric opaque key pre-cache initial capacity */
+    public static final float DEFAULT_CHRONICLE_OPAQUE_CACHE_LOAD_FACTOR = 0.75f;
 	
 	
 	// ===========================================================================================	

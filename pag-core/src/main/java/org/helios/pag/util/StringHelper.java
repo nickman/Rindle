@@ -10,6 +10,7 @@ import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -59,6 +60,22 @@ public class StringHelper {
     	char val[] = s.toCharArray();
         for (int i = 0; i < len; i++) {
             h = (31*h + val[off++] + (hashPrime*h));
+        }
+        return h;
+	}
+	
+	/**
+	 * Calculates a low collision hash code for the passed byte array
+	 * @param arr The byte array to calculate the hash code for
+	 * @return the long hashcode
+	 */
+	public static long longHashCode(byte[] arr) {
+		long h = 0;
+        int len = arr.length;
+    	int off = 0;
+    	int hashPrime = Arrays.hashCode(arr);
+        for (int i = 0; i < len; i++) {
+            h = (31*h + arr[off++] + (hashPrime*h));
         }
         return h;
 	}
