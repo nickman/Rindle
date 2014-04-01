@@ -24,19 +24,45 @@
  */
 package org.helios.pag.store;
 
-import org.helios.pag.util.unsafe.DeAllocateMe;
+import java.util.Map;
 
 /**
- * <p>Title: OffHeapKey</p>
- * <p>Description: Defines a substitute key for cache keys that are off heap</p> 
+ * <p>Title: IKeyCache</p>
+ * <p>Description: Common base interface for all key caches</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.OffHeapKey</code></p>
- * @param <T> The type of the object represented
+ * <p><code>org.helios.pag.store.IKeyCache</code></p>
  */
 
-public interface OffHeapKey<T>  {
-	public boolean equals(Object o);
-	public int hashCode();
-	public byte[] getBytes();
+public interface IKeyCache {
+    /** the load above which rehashing occurs. */
+    public static final float DEFAULT_LOAD_FACTOR = 0.5f;
+	
+	/** The cache no entry value, meaning a non-existent value not in the cache */
+	public static final long NO_ENTRY_VALUE = -1L;
+	
+
+	/**
+	 * Returns the size of the cache
+	 * @return the size of the cache
+	 * @see gnu.trove.impl.hash.THash#size()
+	 */
+	public int size();
+
+
+	/**
+	 * Clears the cache, but does not trim the cache size.
+	 */
+	public void clear();
+
+	/**
+	 * Clears the cache, and trims the cache size to zero.
+	 */
+	public void purge();
+	
+	/**
+	 * Removes all entries where the value is {@link #NO_ENTRY_VALUE}
+	 */
+	public void trimToSize();
+
 }

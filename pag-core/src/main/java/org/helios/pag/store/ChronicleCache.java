@@ -27,8 +27,6 @@ package org.helios.pag.store;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteOrder;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 
 import org.apache.logging.log4j.LogManager;
@@ -39,8 +37,11 @@ import org.helios.pag.util.SystemClock.ElapsedTime;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 import org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock;
 
+import test.cache.TestKeyedCaches;
+
 import com.higherfrequencytrading.chronicle.Excerpt;
 import com.higherfrequencytrading.chronicle.impl.IndexedChronicle;
+import com.higherfrequencytrading.chronicle.tools.ChronicleTools;
 
 /**
  * <p>Title: ChronicleCache</p>
@@ -95,44 +96,55 @@ public class ChronicleCache {
 	}
 	
 	public static void main(String[] args) {
-		ChronicleCache cc = ChronicleCache.getInstance();
-		cc.indexedChronicle.clear();
-		int loops = 10;
-		int sampleSize = 100000;
-		
-		Set<UUID> uuids = new HashSet<UUID>(sampleSize);
-		for(int i = 0; i < sampleSize; i++) {
-			uuids.add(UUID.randomUUID());
-		}
-		cc.log.info("UUID Sample Size: {}", uuids.size());
-		for(int x = 0; x < loops; x++) { 
-			for(UUID uuid: uuids) {
-				String s = uuid.toString();
-				ChronicleCacheEntry.newEntry(s);
+		ChronicleCache cc = null;
+		try {
+			cc = ChronicleCache.getInstance();
+			cc.indexedChronicle.clear();
+			cc.clearCache();
+			
+			cc.log.info("UUID Sample Size: {}", TestKeyedCaches.uuidSamples.size());
+			for(String uuid: TestKeyedCaches.uuidSamples.values()) {
+				ChronicleCacheEntry.newEntry(uuid);
+				ChronicleCacheEntry.newEntry(uuid.getBytes());
 			}
-			for(UUID uuid: uuids) {
-				String s = uuid.toString();
-				ChronicleCacheEntry.newEntry(s.getBytes());
+			cc.clearCache();
+			cc.load();			
+			ElapsedTime et = SystemClock.startClock();
+			for(int i = 0; i < 10; i++) {
+				for(String uuid: TestKeyedCaches.uuidSamples.values()) {
+					ChronicleCacheEntry.newEntry(uuid);
+					ChronicleCacheEntry.newEntry(uuid.getBytes());
+				}
 			}
-		}
-		cc.instance = null;
-		cc = ChronicleCache.getInstance();
-		ElapsedTime et = SystemClock.startClock();
-		for(int x = 0; x < loops; x++) { 
-			for(UUID uuid: uuids) {
-				String s = uuid.toString();
-				ChronicleCacheEntry.newEntry(s);
-			}
-			for(UUID uuid: uuids) {
-				String s = uuid.toString();
-				ChronicleCacheEntry.newEntry(s.getBytes());
-			}
-		}
-		cc.log.info("Loaded Test Data: {}", et.printAvg("Entries", sampleSize * loops));
-		cc.log.info("Name Cache Size: {}", cc.nameCache.size());
-		cc.log.info("Opaque Cache Size: {}", cc.opaqueCache.size());
-		
+			cc.log.info("Loaded Test Data: {}", et.printAvg("Entries", TestKeyedCaches.uuidSamples.size() * 10));
+			cc.log.info("Name Cache Size: {}", cc.nameCache.size());
+			cc.log.info("Opaque Cache Size: {}", cc.opaqueCache.size());
+		} catch (Throwable t) {
+			cc.log.info("Name Cache Size: {}", cc.nameCache.size());
+			cc.log.info("Opaque Cache Size: {}", cc.opaqueCache.size());
+			cc.log.error("Test Fail", t);
+		} finally {
+			ChronicleTools.deleteOnExit(new ChronicleConfiguration().dataDir.getAbsolutePath());
+		}		
 	}
+	
+	/**
+	 * Clears the chronicle, name and opaque caches
+	 */
+	private void purge() {
+		indexedChronicle.clear();
+		nameCache.clear();
+		opaqueCache.clear();
+	}
+	
+	/**
+	 * Clears the name and opaque caches
+	 */
+	private void clearCache() {
+		nameCache.clear();
+		opaqueCache.clear();
+	}
+	
 
 	/**
 	 * Creates a new ChronicleCache
@@ -143,7 +155,7 @@ public class ChronicleCache {
 		String fileName = null;
 		try {
 			fileName = config.dataDir.getAbsolutePath() + File.separator + "MetricCache";
-			indexedChronicle = new IndexedChronicle(fileName, 1, ByteOrder.nativeOrder(), true, false);
+			indexedChronicle = new IndexedChronicle(fileName, 8, ByteOrder.nativeOrder(), true, false);
 			indexedChronicle.useUnsafe(config.unsafe);
 			indexedChronicle.multiThreaded(true);
 			indexedChronicle.setEnumeratedMarshaller(new ChronicleCacheEntryMarshaller(writeSpinLock));
@@ -174,6 +186,15 @@ public class ChronicleCache {
 				continue;
 			}
 			long key = exc.index();
+			if(exc.capacity() < IChronicleCacheEntry.BYTES_LENGTH_OFFSET) {
+				log.info("Corrupt Entry: {}, Size:{}", key, exc.capacity());
+				exc.position(0);
+				exc.writeByte(0);
+				exc.toEnd();
+				exc.finish();
+				exc.flush();
+				
+			}
 			exc.position(IChronicleCacheEntry.NAME_LENGTH_OFFSET);
 			int s_size = exc.readInt();
 			int b_size = exc.readInt();

@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2007, Helios Development Group and individual contributors
+ * Copyright 2014, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -24,66 +24,64 @@
  */
 package org.helios.pag.store;
 
-import gnu.trove.map.hash.TLongLongHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.util.Map;
 
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 import org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock;
 
 /**
- * <p>Title: CharBufferStringKeyCache</p>
- * <p>Description: An {@link IStringKeyCache} implementation using {@link CharBuffer}s</p> 
+ * <p>Title: ByteBufferKeyChronicleCache</p>
+ * <p>Description: A {@link IByteArrayKeyCache} implemented using {@link ByteBuffer}s as keys</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.CharBufferStringKeyCache</code></p>
+ * <p><code>org.helios.pag.store.ByteBufferKeyChronicleCache</code></p>
  */
 
-public class CharBufferStringKeyCache implements IStringKeyCache {
+public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
 	
 	/** The spin lock */
 	protected final SpinLock lock = UnsafeAdapter.allocateSpinLock();
 
-	/** The cache of Chronicle entry ids keyed by the long hash code of the name */
-	private final TObjectLongHashMap<CharBuffer> cache;
+	/** The cache of Chronicle entry ids keyed by a byte buffer wrapped byte array */
+	private final TObjectLongHashMap<ByteBuffer> cache;
 	
 	private final boolean offHeap;
 	
 	/**
-	 * Creates a new CharBufferStringKeyCache
+	 * Creates a new ByteBufferKeyChronicleCache
      * @param initialCapacity used to find a prime capacity for the table.
      * @param loadFactor used to calculate the threshold over which rehashing takes place.
      * @param offHeap If true, buffer is placed off-heap, on-heap otherwise
 	 */
-	public CharBufferStringKeyCache(int initialCapacity, float loadFactor, boolean offHeap) {
-		cache = new TObjectLongHashMap<CharBuffer>(initialCapacity, loadFactor, NO_ENTRY_VALUE);
+	public ByteBufferKeyChronicleCache(int initialCapacity, float loadFactor, boolean offHeap) {
+		cache = new TObjectLongHashMap<ByteBuffer>(initialCapacity, loadFactor, NO_ENTRY_VALUE);
 		this.offHeap = offHeap;
 	}
 	
 	/**
-	 * Creates a new on-heap CharBufferStringKeyCache with the default load factor
+	 * Creates a new on-heap ByteBufferKeyChronicleCache with the default load factor
      * @param initialCapacity used to find a prime capacity for the table.
 	 */
-	public CharBufferStringKeyCache(int initialCapacity) {
+	public ByteBufferKeyChronicleCache(int initialCapacity) {
 		this(initialCapacity, DEFAULT_LOAD_FACTOR, false);
 	}
 	
 	/**
-	 * Wraps the passed key in a CharBuffer
+	 * Wraps the passed key in a ByteBuffer
 	 * @param key The key to wrap
-	 * @return The CharBuffer wrapped key
+	 * @return The ByteBuffer wrapped key
 	 */
-	protected CharBuffer wrap(CharSequence key) {
-		CharBuffer cb = null;
+	protected ByteBuffer wrap(byte[] key) {
+		ByteBuffer bb = null;
 		if(!offHeap) {
-			cb = ((CharBuffer) CharBuffer.allocate(key.length()).append(key).flip()).asReadOnlyBuffer();
+			bb = ((ByteBuffer) ByteBuffer.allocate(key.length).put(key).flip()).asReadOnlyBuffer();
 		} else {
-			cb = ((CharBuffer) ByteBuffer.allocateDirect(key.length()*2).asCharBuffer().append(key).flip()).asReadOnlyBuffer();
+			bb = ((ByteBuffer) ByteBuffer.allocateDirect(key.length).put(key).flip()).asReadOnlyBuffer();
 		}
-		return cb;
+		return bb;
 	}
 
 	/**
@@ -102,10 +100,10 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#containsKey(java.lang.CharSequence)
+	 * @see org.helios.pag.store.IByteArrayKeyCache#containsKey(byte[])
 	 */
 	@Override
-	public boolean containsKey(CharSequence key) {
+	public boolean containsKey(byte[] key) {
 		if(key==null) return false;
 		try {			
 			lock.xlock();
@@ -148,10 +146,10 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#get(java.lang.CharSequence)
+	 * @see org.helios.pag.store.IByteArrayKeyCache#get(byte[])
 	 */
 	@Override
-	public long get(CharSequence key) {
+	public long get(byte[] key) {
 		if(key==null) return NO_ENTRY_VALUE;
 		try {
 			lock.xlock();
@@ -164,10 +162,10 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#put(java.lang.CharSequence, long)
+	 * @see org.helios.pag.store.IByteArrayKeyCache#put(byte[], long)
 	 */
 	@Override
-	public long put(CharSequence key, long value) {
+	public long put(byte[] key, long value) {
 		if(key==null) throw new IllegalArgumentException("The passed key was null");		
 		try {
 			lock.xlock();			
@@ -183,16 +181,16 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 	 * @param value The long value
 	 * @return the previous value associated with they key or {@link #NO_ENTRY_VALUE} if there was no mapping for the key.
 	 */
-	protected long _put(CharSequence key, long value) {
+	protected long _put(byte[] key, long value) {
 		return cache.put(wrap(key), value);
 	}
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#putIfAbsent(java.lang.CharSequence, long)
+	 * @see org.helios.pag.store.IByteArrayKeyCache#putIfAbsent(byte[], long)
 	 */
 	@Override
-	public long putIfAbsent(CharSequence key, long value) {
+	public long putIfAbsent(byte[] key, long value) {
 		if(key==null) throw new IllegalArgumentException("The passed key was null");
 		try {
 			lock.xlock();			
@@ -204,10 +202,10 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#remove(java.lang.CharSequence)
+	 * @see org.helios.pag.store.IByteArrayKeyCache#remove(byte[])
 	 */
 	@Override
-	public long remove(CharSequence key) {
+	public long remove(byte[] key) {
 		if(key==null) throw new IllegalArgumentException("The passed key was null");
 		try {			
 			lock.xlock();			
@@ -220,15 +218,15 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#putAll(java.util.Map)
+	 * @see org.helios.pag.store.IByteArrayKeyCache#putAll(java.util.Map)
 	 */
 	@Override
-	public void putAll(Map<? extends CharSequence, ? extends Long> map) {
+	public void putAll(Map<byte[], Long> map) {
 		if(map==null) throw new IllegalArgumentException("The passed map was null");
 		if(map.isEmpty()) return;
 		try {			
 			lock.xlock();
-			for(Map.Entry<? extends CharSequence, ? extends Long> entry: map.entrySet()) {
+			for(Map.Entry<byte[], Long> entry: map.entrySet()) {
 				_put(entry.getKey(), entry.getValue().longValue());
 			}
 		} finally {
@@ -243,7 +241,7 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 	 * @return true if a mapping was found and modified.
 	 * @see gnu.trove.map.hash.TObjectLongHashMap#adjustValue(java.lang.Object, long)
 	 */
-	public boolean adjustValue(CharSequence key, long value) {
+	public boolean adjustValue(byte[] key, long value) {
 		if(key==null) throw new IllegalArgumentException("The passed key was null");		
 		try {						
 			lock.xlock();

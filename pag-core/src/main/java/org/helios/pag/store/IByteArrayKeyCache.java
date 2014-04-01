@@ -28,13 +28,13 @@ import java.util.Map;
 
 /**
  * <p>Title: IByteArrayKeyCache</p>
- * <p>Description: </p> 
+ * <p>Description: Defines a chronicle global id cache keyed by the opaque metric id (a byte array)</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.pag.store.IByteArrayKeyCache</code></p>
  */
 
-public interface IByteArrayKeyCache {
+public interface IByteArrayKeyCache extends IKeyCache {
 	
     /** the load above which rehashing occurs. */
     public static final float DEFAULT_LOAD_FACTOR = 0.5f;
@@ -44,13 +44,6 @@ public interface IByteArrayKeyCache {
 	
 
 	/**
-	 * Returns the size of the cache
-	 * @return the size of the cache
-	 * @see gnu.trove.impl.hash.THash#size()
-	 */
-	public int size();
-
-	/**
 	 * Determines if the cache contains the passed byte array value
 	 * @param key The byte array to check for
 	 * @return true if found, false otherwise
@@ -58,10 +51,6 @@ public interface IByteArrayKeyCache {
 	 */
 	public boolean containsKey(byte[] key);
 
-	/**
-	 * Clears the cache
-	 */
-	public void clear();
 
 	/**
 	 * Retrieves the long keyed by the passed byte array
@@ -113,9 +102,5 @@ public interface IByteArrayKeyCache {
 	 */
 	public boolean adjustValue(byte[] key, long value);
 	
-	/**
-	 * Removes all entries where the value is {@link #NO_ENTRY_VALUE}
-	 */
-	public void trimToSize();
 
 }

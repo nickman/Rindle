@@ -36,6 +36,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import org.helios.pag.store.ByteArrayKeyChronicleCache;
+import org.helios.pag.store.ByteBufferKeyChronicleCache;
 import org.helios.pag.store.CharBufferStringKeyCache;
 import org.helios.pag.store.IByteArrayKeyCache;
 import org.helios.pag.store.IStringKeyCache;
@@ -69,9 +70,9 @@ public class TestKeyedCaches extends BaseTest {
 	static final int warmupLoops = 10;
 	
 	/** Static test samples */
-	static final SortedMap<Long, String> uuidSamples;
+	public static final SortedMap<Long, String> uuidSamples; 
 	/** Static test samples key-reversed */
-	static final SortedMap<String, Long> uuidSamplesRev;
+	public static final SortedMap<String, Long> uuidSamplesRev;
 	
 	/** The memory mx bean to capture heap allocation */
 	static final MemoryMXBean memBean = ManagementFactory.getMemoryMXBean();
@@ -113,6 +114,10 @@ public class TestKeyedCaches extends BaseTest {
 		tmpSet.clear();
 	}
 
+	/**
+	 * Creates a random string by appending random numbers of UUID fragments interlaced with random characters
+	 * @return a random string
+	 */
 	protected static String randomSample() {
 		StringBuilder b = new StringBuilder();
 		int fragments = nextPosInt(10);
@@ -121,22 +126,15 @@ public class TestKeyedCaches extends BaseTest {
 		}
 		return b.toString();
 	}
+	
+
+	
 	/**
 	 * Tests the {@link StringKeyChronicleCache}
 	 */
 	@Test
 	public void testLongHashedStringKeyChronicleCache() {
-		final IStringKeyCache nameCache = new StringKeyChronicleCache(SAMPLE_SIZE, 0.75f);		
-		for(Map.Entry<Long, String> entry: uuidSamples.entrySet()) {
-			nameCache.put(entry.getValue(), entry.getKey());			
-		}
-		Assert.assertEquals("Unexpected cache size", SAMPLE_SIZE,  nameCache.size());
-		log("Cache Size: %s", nameCache.size());
-		for(long index: sampleList) {
-			long key = nameCache.get(uuidSamples.get(index));
-			Assert.assertNotEquals("Key was not found", NO_ENTRY_VALUE, key);
-			Assert.assertEquals("Key was not expected ", index, key);
-		}
+		testCache(new StringKeyChronicleCache(SAMPLE_SIZE, 0.75f));		
 	}
 	
 	/**
@@ -144,17 +142,7 @@ public class TestKeyedCaches extends BaseTest {
 	 */
 	@Test
 	public void testOffHeapCharBufferStringKeyChronicleCache() {
-		final IStringKeyCache nameCache = new CharBufferStringKeyCache(SAMPLE_SIZE, 0.75f, true);		
-		for(Map.Entry<Long, String> entry: uuidSamples.entrySet()) {
-			nameCache.put(entry.getValue(), entry.getKey());			
-		}
-		Assert.assertEquals("Unexpected cache size", SAMPLE_SIZE,  nameCache.size());
-		log("Cache Size: %s", nameCache.size());
-		for(long index: sampleList) {
-			long key = nameCache.get(uuidSamples.get(index));
-			Assert.assertNotEquals("Key was not found", NO_ENTRY_VALUE, key);
-			Assert.assertEquals("Key was not expected ", index, key);
-		}
+		testCache(new CharBufferStringKeyCache(SAMPLE_SIZE, 0.75f, true));		
 	}
 	
 	/**
@@ -162,17 +150,31 @@ public class TestKeyedCaches extends BaseTest {
 	 */
 	@Test
 	public void testOnHeapCharBufferStringKeyChronicleCache() {
-		final IStringKeyCache nameCache = new CharBufferStringKeyCache(SAMPLE_SIZE, 0.75f, false);		
-		for(Map.Entry<Long, String> entry: uuidSamples.entrySet()) {
-			nameCache.put(entry.getValue(), entry.getKey());			
-		}
-		Assert.assertEquals("Unexpected cache size", SAMPLE_SIZE,  nameCache.size());
-		log("Cache Size: %s", nameCache.size());
-		for(long index: sampleList) {
-			long key = nameCache.get(uuidSamples.get(index));
-			Assert.assertNotEquals("Key was not found", NO_ENTRY_VALUE, key);
-			Assert.assertEquals("Key was not expected ", index, key);
-		}
+		testCache(new CharBufferStringKeyCache(SAMPLE_SIZE, 0.75f, false));		
+	}
+
+	/**
+	 * Tests the {@link ByteArrayKeyChronicleCache}
+	 */
+	@Test
+	public void testByteArrayKeyChronicleCache() {
+		testCache(new ByteArrayKeyChronicleCache(SAMPLE_SIZE, 0.75f));		
+	}
+	
+	/**
+	 * Tests the Off Heap {@link ByteBufferKeyChronicleCache}
+	 */
+	@Test
+	public void testOffHeapByteBufferKeyChronicleCache() {
+		testCache(new ByteBufferKeyChronicleCache(SAMPLE_SIZE, 0.75f, true));		
+	}
+	
+	/**
+	 * Tests the On Heap {@link ByteBufferKeyChronicleCache}
+	 */
+	@Test
+	public void testOnHeapByteBufferKeyChronicleCache() {
+		testCache(new ByteBufferKeyChronicleCache(SAMPLE_SIZE, 0.75f, false));		
 	}
 	
 	
@@ -189,7 +191,7 @@ public class TestKeyedCaches extends BaseTest {
 		testCache(offHeapCBCache);
 		StringBuilder result = new StringBuilder(et.printAvg("OffHeap CharBufferStringKeyCache Samples", SAMPLE_SIZE));
 		long before = beforeClear();
-		offHeapCBCache.clear(); 
+		offHeapCBCache.purge();
 		long diff = afterClear(before);
 		results.add(result.append("\n\t\tHeap Usage: ").append(diff/1024).append(" KB").toString());
 		log("OffHeap CharBufferStringKeyCache Complete");
@@ -200,7 +202,7 @@ public class TestKeyedCaches extends BaseTest {
 		testCache(onHeapCBCache); 
 		result = new StringBuilder(et.printAvg("OnHeap CharBufferStringKeyCache Samples", SAMPLE_SIZE));
 		before = beforeClear();
-		onHeapCBCache.clear();
+		onHeapCBCache.purge();
 		diff = afterClear(before);
 		results.add(result.append("\n\t\tHeap Usage: ").append(diff/1024).append(" KB").toString());		
 		log("OnHeap CharBufferStringKeyCache Complete");
@@ -211,12 +213,43 @@ public class TestKeyedCaches extends BaseTest {
 		testCache(longHashNameCache); 
 		result = new StringBuilder(et.printAvg("OffHeap CharBufferStringKeyCache Samples", SAMPLE_SIZE));
 		before = beforeClear();		
-		log("LongHash Cache Size: %s", longHashNameCache.size());
-		longHashNameCache.clear();
-		longHashNameCache.trimToSize();
+		longHashNameCache.purge();
 		diff = afterClear(before);
 		results.add(result.append("\n\t\tHeap Usage: ").append(diff/1024).append(" KB").toString());				
 		log("StringKeyChronicleCache Complete");
+		// =============================================================================================		
+		final IByteArrayKeyCache longHashByteCache = new ByteArrayKeyChronicleCache(SAMPLE_SIZE, 0.75f);
+		for(int i = 0; i < warmupLoops; i++) { testCache(longHashByteCache); longHashByteCache.clear(); }
+		et = SystemClock.startClock();
+		testCache(longHashByteCache); 
+		result = new StringBuilder(et.printAvg("ByteArrayKeyChronicleCache Samples", SAMPLE_SIZE));
+		before = beforeClear();		
+		longHashByteCache.purge();
+		diff = afterClear(before);
+		results.add(result.append("\n\t\tHeap Usage: ").append(diff/1024).append(" KB").toString());				
+		log("ByteArrayKeyChronicleCache Complete");
+		// =============================================================================================		
+		final IByteArrayKeyCache onHeapByteCache = new ByteBufferKeyChronicleCache(SAMPLE_SIZE, 0.75f, false);
+		for(int i = 0; i < warmupLoops; i++) { testCache(onHeapByteCache); onHeapByteCache.clear(); }
+		et = SystemClock.startClock();
+		testCache(onHeapByteCache); 
+		result = new StringBuilder(et.printAvg("OnHeap ByteBufferKeyChronicleCache Samples", SAMPLE_SIZE));
+		before = beforeClear();		
+		onHeapByteCache.purge();
+		diff = afterClear(before);
+		results.add(result.append("\n\t\tHeap Usage: ").append(diff/1024).append(" KB").toString());				
+		log("OnHeap ByteBufferKeyChronicleCache Complete");		
+		// =============================================================================================		
+		final IByteArrayKeyCache offHeapByteCache = new ByteBufferKeyChronicleCache(SAMPLE_SIZE, 0.75f, true);
+		for(int i = 0; i < warmupLoops; i++) { testCache(offHeapByteCache); offHeapByteCache.clear(); }
+		et = SystemClock.startClock();
+		testCache(offHeapByteCache); 
+		result = new StringBuilder(et.printAvg("OffHeap ByteBufferKeyChronicleCache Samples", SAMPLE_SIZE));
+		before = beforeClear();		
+		offHeapByteCache.purge();
+		diff = afterClear(before);
+		results.add(result.append("\n\t\tHeap Usage: ").append(diff/1024).append(" KB").toString());				
+		log("OffHeap ByteBufferKeyChronicleCache Complete");				
 		// =============================================================================================
 		log("\n\t==================================\n\tResults\n\t==================================");
 		for(String s: results) {
@@ -228,42 +261,120 @@ public class TestKeyedCaches extends BaseTest {
 
 	}
 	
-	public void testCache(IStringKeyCache nameCache) {
+	/**
+	 * Tests a key cache instance
+	 * @param cache The cache to test
+	 */
+	public void testCache(IStringKeyCache cache) {
+		// =================================================================================
+		// Puts all the samples and verifies the cache size
+		// =================================================================================
 		for(Map.Entry<Long, String> entry: uuidSamples.entrySet()) {
-			nameCache.put(entry.getValue(), entry.getKey());			
+			cache.put(entry.getValue(), entry.getKey());			
 		}
-		Assert.assertEquals("Unexpected cache size", SAMPLE_SIZE,  nameCache.size());
+		Assert.assertEquals("Unexpected cache size", SAMPLE_SIZE,  cache.size());
+		// =================================================================================
+		// For each key, validates that the bound value is the expected value
+		// =================================================================================		
 		for(long index: sampleList) {
-			long key = nameCache.get(uuidSamples.get(index));
-			Assert.assertNotEquals("Key was not found", NO_ENTRY_VALUE, key);
+			long key = cache.get(uuidSamples.get(index));
 			Assert.assertEquals("Key was not expected ", index, key);
 		}
+		// =================================================================================
+		// For each key, validates the removed value and ensures the cache now reports absent
+		// =================================================================================				
+		for(long index: sampleList) {
+			String cacheKey = uuidSamples.get(index);
+			Assert.assertNotNull("Retrieved Key was null", cacheKey);
+			long cacheValue = cache.remove(cacheKey);
+			Assert.assertEquals("Key was not expected", index, cacheValue);
+			Assert.assertTrue("Key was not absent", !cache.containsKey(cacheKey));
+			Assert.assertEquals("Lookup did not return NO_ENTRY_VALUE", NO_ENTRY_VALUE, cache.get(cacheKey));
+			// put the pair back into the cache
+			cache.put(cacheKey, index);
+			Assert.assertEquals("Key was not expected ", index, cache.get(cacheKey));			
+		}
+		// =================================================================================
+		// For each key, validates the replaced value
+		// =================================================================================				
+		for(long index: sampleList) {
+			String cacheKey = uuidSamples.get(index);
+			Assert.assertNotNull("Retrieved Key was null", cacheKey);
+			Assert.assertTrue("Value was not replaced", cache.adjustValue(cacheKey, index * -2L));
+			Assert.assertEquals("Lookup did not return negative prior value", index * -1L, cache.get(cacheKey));
+			Assert.assertTrue("Value was not replaced", cache.adjustValue(cacheKey, index * 2L));
+			Assert.assertEquals("Lookup did not return expected value", index, cache.get(cacheKey));
+		}
+		
+		
+		
 	}
 	
 	/**
-	 * Tests the {@link ByteArrayKeyChronicleCache}
+	 * Tests a key cache instance
+	 * @param cache The cache to test
 	 */
-	@Test
-	public void testByteArrayKeyChronicleCache() {
-		final IByteArrayKeyCache bCache = new ByteArrayKeyChronicleCache(SAMPLE_SIZE, 0.75f);		
+	public void testCache(IByteArrayKeyCache cache) {
+		// =================================================================================
+		// Puts all the samples and verifies the cache size
+		// =================================================================================		
 		for(Map.Entry<Long, String> entry: uuidSamples.entrySet()) {
-			bCache.put(entry.getValue().getBytes(), entry.getKey());			
+			cache.put(entry.getValue().getBytes(), entry.getKey());			
 		}
-		Assert.assertEquals("Unexpected cache size", SAMPLE_SIZE,  bCache.size());
-		log("Cache Size: %s", bCache.size());
+		Assert.assertEquals("Unexpected cache size", SAMPLE_SIZE,  cache.size());
+		// =================================================================================
+		// For each key, validates that the bound value is the expected value
+		// =================================================================================				
 		for(long index: sampleList) {
-			long key = bCache.get(uuidSamples.get(index).getBytes());
-			Assert.assertNotEquals("Key was not found", NO_ENTRY_VALUE, key);
+			long key = cache.get(uuidSamples.get(index).getBytes());
 			Assert.assertEquals("Key was not expected ", index, key);
+		}
+		// =================================================================================
+		// For each key, validates the removed value and ensures the cache now reports absent
+		// =================================================================================				
+		for(long index: sampleList) {
+			byte[] cacheKey = uuidSamples.get(index).getBytes();
+			Assert.assertNotNull("Retrieved Key was null", cacheKey);
+			long cacheValue = cache.remove(cacheKey);
+			Assert.assertEquals("Key was not expected", index, cacheValue);
+			Assert.assertTrue("Key was not absent", !cache.containsKey(cacheKey));
+			Assert.assertEquals("Lookup did not return NO_ENTRY_VALUE", NO_ENTRY_VALUE, cache.get(cacheKey));
+			// put the pair back into the cache
+			cache.put(cacheKey, index);
+			Assert.assertEquals("Key was not expected ", index, cache.get(cacheKey));			
+		}
+		// =================================================================================
+		// For each key, validates the replaced value
+		// =================================================================================				
+		for(long index: sampleList) {
+			byte[] cacheKey = uuidSamples.get(index).getBytes();
+			Assert.assertNotNull("Retrieved Key was null", cacheKey);
+			Assert.assertTrue("Value was not replaced", cache.adjustValue(cacheKey, index * -2L));
+			Assert.assertEquals("Lookup did not return negative prior value", index * -1L, cache.get(cacheKey));
+			Assert.assertTrue("Value was not replaced", cache.adjustValue(cacheKey, index * 2L));
+			Assert.assertEquals("Lookup did not return expected value", index, cache.get(cacheKey));
 		}
 	}
 	
 	
+	
+	
+
+	
+	/**
+	 * Executes a GC and then returns the current heap usage
+	 * @return the current heap usage in bytes
+	 */
 	protected long beforeClear() {
 		memBean.gc(); memBean.gc(); 
 		return memBean.getHeapMemoryUsage().getUsed();
 	}
 	
+	/**
+	 * Executes a GC and then returns the delta between the passed heap usage and the current. 
+	 * @param beforeClear A priot reading of the heap space in bytes
+	 * @return the heap space delta in bytes
+	 */
 	protected long afterClear(long beforeClear) {
 		memBean.gc(); memBean.gc();
 		return beforeClear - memBean.getHeapMemoryUsage().getUsed();

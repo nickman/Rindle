@@ -54,7 +54,7 @@ public class StringKeyChronicleCache  implements IStringKeyCache {
      * @param loadFactor used to calculate the threshold over which rehashing takes place.
 	 */
 	public StringKeyChronicleCache(int initialCapacity, float loadFactor) {
-		cache = new TLongLongHashMap(initialCapacity, loadFactor);
+		cache = new TLongLongHashMap(initialCapacity, loadFactor, NO_ENTRY_VALUE, NO_ENTRY_VALUE);
 	}
 	
 	/**
@@ -110,6 +110,21 @@ public class StringKeyChronicleCache  implements IStringKeyCache {
 			lock.xunlock();
 		}		
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.IKeyCache#purge()
+	 */
+	@Override
+	public void purge() {
+		try {			
+			lock.xlock();
+			cache.clear();
+			cache.trimToSize();		
+		} finally {
+			lock.xunlock();
+		}		
+	}	
 	
 
 	/**

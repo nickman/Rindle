@@ -34,7 +34,7 @@ import org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock;
 
 /**
  * <p>Title: ByteArrayKeyChronicleCache</p>
- * <p>Description: </p> 
+ * <p>Description: A byte array keyed cache implemented by keying off the long hashcode of the byte array</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.pag.store.ByteArrayKeyChronicleCache</code></p>
@@ -54,7 +54,7 @@ public class ByteArrayKeyChronicleCache  implements IByteArrayKeyCache {
      * @param loadFactor used to calculate the threshold over which rehashing takes place.
 	 */
 	public ByteArrayKeyChronicleCache(int initialCapacity, float loadFactor) {
-		cache = new TLongLongHashMap(initialCapacity, loadFactor);
+		cache = new TLongLongHashMap(initialCapacity, loadFactor, NO_ENTRY_VALUE, NO_ENTRY_VALUE);
 	}
 	
 	/**
@@ -295,6 +295,21 @@ public class ByteArrayKeyChronicleCache  implements IByteArrayKeyCache {
 		} finally {
 			lock.xunlock();
 		}				
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.IKeyCache#purge()
+	 */
+	@Override
+	public void purge() {
+		try {			
+			lock.xlock();
+			cache.clear();
+			cache.trimToSize();		
+		} finally {
+			lock.xunlock();
+		}		
 	}
 
 }

@@ -10,24 +10,11 @@ import java.util.Map;
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.pag.store.IStringKeyCache</code></p>
  */
-public interface IStringKeyCache {
+public interface IStringKeyCache extends IKeyCache {
 	
 	/** The default platform charset */
 	public static final Charset CHARSET = Charset.defaultCharset();
-    /** the load above which rehashing occurs. */
-    public static final float DEFAULT_LOAD_FACTOR = 0.5f;
 	
-	/** The cache no entry value, meaning a non-existent value not in the cache */
-	public static final long NO_ENTRY_VALUE = -1L;
-	
-
-	/**
-	 * Returns the size of the cache
-	 * @return the size of the cache
-	 * @see gnu.trove.impl.hash.THash#size()
-	 */
-	public int size();
-
 	/**
 	 * Determines if the cache contains the passed stringy value
 	 * @param key The stringy to check for
@@ -36,10 +23,6 @@ public interface IStringKeyCache {
 	 */
 	public boolean containsKey(CharSequence key);
 
-	/**
-	 * Clears the cache
-	 */
-	public void clear();
 
 	/**
 	 * Retrieves the long keyed by the passed stringy
@@ -91,9 +74,4 @@ public interface IStringKeyCache {
 	 */
 	public boolean adjustValue(CharSequence key, long value);
 	
-	/**
-	 * Removes all entries where the value is {@link #NO_ENTRY_VALUE}
-	 */
-	public void trimToSize();
-
 }
