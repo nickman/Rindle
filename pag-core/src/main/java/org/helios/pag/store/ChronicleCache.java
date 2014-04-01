@@ -27,13 +27,15 @@ package org.helios.pag.store;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteOrder;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.helios.pag.util.StringHelper;
-import org.helios.pag.util.unsafe.DeAllocateMe;
+import org.helios.pag.util.SystemClock;
+import org.helios.pag.util.SystemClock.ElapsedTime;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 import org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock;
 
@@ -91,6 +93,46 @@ public class ChronicleCache {
 		}
 		return instance;
 	}
+	
+	public static void main(String[] args) {
+		ChronicleCache cc = ChronicleCache.getInstance();
+		cc.indexedChronicle.clear();
+		int loops = 10;
+		int sampleSize = 100000;
+		
+		Set<UUID> uuids = new HashSet<UUID>(sampleSize);
+		for(int i = 0; i < sampleSize; i++) {
+			uuids.add(UUID.randomUUID());
+		}
+		cc.log.info("UUID Sample Size: {}", uuids.size());
+		for(int x = 0; x < loops; x++) { 
+			for(UUID uuid: uuids) {
+				String s = uuid.toString();
+				ChronicleCacheEntry.newEntry(s);
+			}
+			for(UUID uuid: uuids) {
+				String s = uuid.toString();
+				ChronicleCacheEntry.newEntry(s.getBytes());
+			}
+		}
+		cc.instance = null;
+		cc = ChronicleCache.getInstance();
+		ElapsedTime et = SystemClock.startClock();
+		for(int x = 0; x < loops; x++) { 
+			for(UUID uuid: uuids) {
+				String s = uuid.toString();
+				ChronicleCacheEntry.newEntry(s);
+			}
+			for(UUID uuid: uuids) {
+				String s = uuid.toString();
+				ChronicleCacheEntry.newEntry(s.getBytes());
+			}
+		}
+		cc.log.info("Loaded Test Data: {}", et.printAvg("Entries", sampleSize * loops));
+		cc.log.info("Name Cache Size: {}", cc.nameCache.size());
+		cc.log.info("Opaque Cache Size: {}", cc.opaqueCache.size());
+		
+	}
 
 	/**
 	 * Creates a new ChronicleCache
@@ -109,6 +151,7 @@ public class ChronicleCache {
 			opaqueCache = new ByteArrayKeyChronicleCache(config.opaqueCacheInitialCapacity, config.opaqueCacheLoadFactor);
 			writer = new ChronicleCacheWriter(indexedChronicle, writeSpinLock, nameCache, opaqueCache);
 			log.info(StringHelper.banner("Created ChronicleCache"));
+			load();
 		} catch (IOException e) {
 			String msg = "Failed to create IndexedChronicle in [" + fileName + "]";
 			log.error(msg, e);
@@ -122,11 +165,33 @@ public class ChronicleCache {
 	
 	protected void load() {
 		Excerpt exc = indexedChronicle.createExcerpt();
-		long loadCount = 0;
+		long loadCount = 0, nameCacheEntries = 0, opaqueCacheEntries = 0;
+		
 		while(exc.hasNextIndex()) {
 			if(!exc.nextIndex()) break;
 			
+			if(exc.readByte()==0) {
+				continue;
+			}
+			long key = exc.index();
+			exc.position(IChronicleCacheEntry.NAME_LENGTH_OFFSET);
+			int s_size = exc.readInt();
+			int b_size = exc.readInt();
+			if(s_size>0) {
+				byte[] bytes = new byte[s_size];
+				exc.read(bytes);
+				nameCache.put(new String(bytes), key);
+				nameCacheEntries++;
+			}
+			if(b_size>0) {
+				byte[] bytes = new byte[b_size];
+				exc.read(bytes);
+				opaqueCache.put(bytes, key);
+				opaqueCacheEntries++;
+			}				
+			loadCount++;
 		}
+		log.info(StringHelper.banner("Loaded %s Cache Records\n\tName Cache: %s\n\tOpaque Cache: %s" , loadCount, nameCacheEntries, opaqueCacheEntries));
 	}
 
 	/**

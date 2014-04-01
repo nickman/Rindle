@@ -42,7 +42,7 @@ import com.higherfrequencytrading.chronicle.Excerpt;
  * <p><code>org.helios.pag.store.ChronicleCacheWriter</code></p>
  */
 
-public class ChronicleCacheWriter {
+public class ChronicleCacheWriter implements IChronicleCacheEntry {
 	/** The chronicle this writer is for */
 	protected final Chronicle chronicle;
 	/** The guarded writing excerpt */
@@ -61,22 +61,6 @@ public class ChronicleCacheWriter {
 	/** The number of inserts */
 	protected final AtomicLong insertCount = new AtomicLong(0L);
 	
-	/** The default charset */
-	public static final Charset CHARSET = Charset.defaultCharset();
-	
-	/** The excerpt total size of an ID only entry */
-	public static int ENTRY_ID_ONLY_SIZE = UnsafeAdapter.LONG_SIZE + 1;
-	
-	/** The excerpt offset of the entry delete indicator */
-	public static int DELETE_OFFSET = 0;
-	/** The excerpt offset of the entry creation timestamp */
-	public static int TIMESTAMP_OFFSET = 1 + DELETE_OFFSET;
-	/** The excerpt offset of the length of the metric name */
-	public static int NAME_LENGTH_OFFSET = UnsafeAdapter.LONG_SIZE + TIMESTAMP_OFFSET;
-	/** The excerpt offset of the length of the metric byte array */
-	public static int BYTES_LENGTH_OFFSET = UnsafeAdapter.INT_SIZE + NAME_LENGTH_OFFSET;
-	/** The excerpt offset of the start of the metric name */
-	public static int NAME_OFFSET = UnsafeAdapter.INT_SIZE + BYTES_LENGTH_OFFSET;
 	
 //	public static int ID_OFFSET = UnsafeAdapter.LONG_SIZE + 1;
 	
@@ -121,8 +105,13 @@ public class ChronicleCacheWriter {
 	
 	
 	public ChronicleCacheEntry writeEntry(ChronicleCacheEntry entry) {
-		writer.writeEnum(entry);
-		return writer.readEnum(ChronicleCacheEntry.class);
+		writeSpinLock.xlock();
+		try {
+			writer.writeEnum(entry);
+			return writer.readEnum(ChronicleCacheEntry.class);
+		} finally {
+			writeSpinLock.xunlock();
+		}
 	}
 	
 	
@@ -136,7 +125,8 @@ public class ChronicleCacheWriter {
 		writeSpinLock.xlock();
 		long gid = -1L;
 		try {
-			writer.startExcerpt(NAME_OFFSET + (name==null ? 0 : name.length()*2) + (opaqueKey==null ? 0 : opaqueKey.length));
+			int capacityEstimate = NAME_OFFSET + (name==null ? 0 : name.length()*2) + (opaqueKey==null ? 0 : opaqueKey.length); 
+			writer.startExcerpt(capacityEstimate);
 			writer.writeByte(1);
 			writer.writeLong(SystemClock.time());
 			if(name!=null) {
@@ -154,14 +144,14 @@ public class ChronicleCacheWriter {
 			} else {
 				writer.writeInt(0);
 			}
-			writer.toEnd();
+//			writer.toEnd();
 			writer.finish();			
 			insertCount.incrementAndGet();
 			gid = writer.index();
 			return gid;
 		} finally {
 			writeSpinLock.xunlock();
-			if(name!=null) {
+			if(name!=null && gid != -1L) {
 				nameCache.put(name, gid);
 			}
 			if(opaqueKey!=null) {

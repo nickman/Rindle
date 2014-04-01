@@ -49,6 +49,8 @@ public class ChronicleCacheEntry implements ExcerptMarshallable {
 	/** The timestamp the metric was created */
 	protected long timestamp = -1L;
 	
+	 
+	
 	/** The chronicle cache instance */
 	protected static final ChronicleCache cache = ChronicleCache.getInstance();
 	
@@ -57,7 +59,8 @@ public class ChronicleCacheEntry implements ExcerptMarshallable {
 	
 	/** The cache no entry value, meaning a non-existent value not in the cache */
 	public static final long NO_ENTRY_VALUE = -1L;
-
+	/** A const null entry */
+	private static final ChronicleCacheEntry NULL_ENTRY = new ChronicleCacheEntry(NO_ENTRY_VALUE);
 
 	
 	/**
@@ -76,17 +79,19 @@ public class ChronicleCacheEntry implements ExcerptMarshallable {
 			_gid = cache.getOpaqueCache().get(opaqueKey);
 		}
 		if(_gid != NO_ENTRY_VALUE) {
-			
+			return ChronicleCacheEntry.load(_gid, null);
 		}
 		return cache.getWriter().writeEntry(entry);		
 	}
 	
 	/**
-	 * @param globalId
-	 * @param exc
-	 * @return
+	 * Loads a ChronicleCacheEntry
+	 * @param globalId the global id
+	 * @param exc The optional chronicle excerpt. If null, a new excerpt will be created and closed on load completion.
+	 * @return the loaded ChronicleCacheEntry
 	 */
 	public static ChronicleCacheEntry load(long globalId, Excerpt exc) {
+		if(globalId==NO_ENTRY_VALUE) return NULL_ENTRY;
 		final boolean newExcerpt = exc==null;
 		if(newExcerpt) exc = cache.newExcerpt();
 		try {
@@ -99,31 +104,55 @@ public class ChronicleCacheEntry implements ExcerptMarshallable {
 	}
 	
 	/**
+	 * Loads a ChronicleCacheEntry
+	 * @param metricName The fully qualified metric name
+	 * @param exc The optional chronicle excerpt. If null, a new excerpt will be created and closed on load completion.
+	 * @return the loaded ChronicleCacheEntry
+	 */
+	public static ChronicleCacheEntry load(String metricName, Excerpt exc) {
+		if(metricName==null) throw new IllegalArgumentException("The passed metric name was null");
+		long _gid = cache.getNameCache().get(metricName);
+		return load(_gid, exc);
+	}
+	
+	/**
+	 * Loads a ChronicleCacheEntry
+	 * @param opaqueKey The metric's opaque key
+	 * @param exc The optional chronicle excerpt. If null, a new excerpt will be created and closed on load completion.
+	 * @return the loaded ChronicleCacheEntry
+	 */
+	public static ChronicleCacheEntry load(byte[] opaqueKey, Excerpt exc) {
+		if(opaqueKey==null) throw new IllegalArgumentException("The passed metric opaque key was null");
+		long _gid = cache.getOpaqueCache().get(opaqueKey);
+		return load(_gid, exc);
+	}
+	
+	/**
 	 * Creates a new ChronicleCacheEntry and saves it to the chronicle cache, populating the new global id in the process
 	 * @param metricName The optional metric name
-	 * @return the saved ChronicleCacheEntry
+	 * @return the saved ChronicleCacheEntry global id
 	 */
-	public static ChronicleCacheEntry newEntry(String metricName) {
-		return newEntry(metricName, null);
+	public static long newEntry(String metricName) {
+		return cache.getWriter().newMetricEntry(metricName);		
 	}
 	
 	/**
 	 * Creates a new ID only ChronicleCacheEntry and saves it to the chronicle cache, populating the new global id in the process
 	 * @param opaqueKey The optional opaqueKey
-	 * @return the saved ChronicleCacheEntry
+	 * @return the saved ChronicleCacheEntry global id
 	 */
-	public static ChronicleCacheEntry newEntry(byte[] opaqueKey) {
-		return newEntry(null, opaqueKey);
+	public static long newEntry(byte[] opaqueKey) {
+		return cache.getWriter().newMetricEntry(opaqueKey);
 	}
 	
 	
 	
 	/**
 	 * Creates a new ChronicleCacheEntry and saves it to the chronicle cache, populating the new global id in the process
-	 * @return the saved ChronicleCacheEntry
+	 * @return the saved ChronicleCacheEntry global id
 	 */
-	public static ChronicleCacheEntry newEntry() {
-		return newEntry(null, null);
+	public static long newEntry() {
+		return cache.getWriter().newMetricEntry();
 	}
 	
 	/**
