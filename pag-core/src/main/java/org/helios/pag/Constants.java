@@ -111,7 +111,13 @@ public class Constants {
 	/** The config property name to specify if chronicle should use unsafe excerpts */
 	public static final String CHRONICLE_UNSAFE_PROP = "helios.pag.store.chronicle.unsafe";
     /** The default chronicle unsafe excerpt setting */
-    public static final boolean DEFAULT_CHRONICLE_UNSAFE = false;
+    public static final boolean DEFAULT_CHRONICLE_UNSAFE = true;
+    
+	/** The config property name to specify the indexed chronicle dataBitSizeHint */
+	public static final String CHRONICLE_DATASIZE_PROP = "helios.pag.store.chronicle.datasize";
+    /** The default indexed chronicle dataBitSizeHint */
+    public static final int DEFAULT_CHRONICLE_DATASIZE = 16;
+    
 	
 	/** The config property name to specify the chronicle metric name pre-cache initial capacity */
 	public static final String CHRONICLE_NAME_CACHE_INITIAL_CAPACITY = "helios.pag.store.chronicle.namecache.initialcap";

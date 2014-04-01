@@ -49,7 +49,7 @@ public class ChronicleConfiguration {
 	/** The config property name to specify if chronicle should use unsafe excerpts */
 	public static final String CHRONICLE_UNSAFE_PROP = "helios.pag.store.chronicle.unsafe";
     /** The default chronicle unsafe excerpt setting */
-    public static final boolean DEFAULT_CHRONICLE_UNSAFE = false;
+    public static final boolean DEFAULT_CHRONICLE_UNSAFE = true;
     
     /** Static class logger */
     private static final Logger LOG = LogManager.getLogger(ChronicleConfiguration.class);
@@ -64,20 +64,14 @@ public class ChronicleConfiguration {
 	/** The load factory of the name cache fronting the chronicle cache */
 	public final float nameCacheLoadFactor;
 	
+	/** The chronicle data bit size hint */
+	public final int dataBitSizeHint;
+	
 	
 	/** The initial capacity of the opaque key cache fronting the chronicle cache */
 	public final int opaqueCacheInitialCapacity;
 	/** The load factory of the opaque key cache fronting the chronicle cache */
 	public final float opaqueCacheLoadFactor;
-	
-//	public static final String CHRONICLE_NAME_CACHE_INITIAL_CAPACITY = "helios.pag.store.chronicle.namecache.initialcap";
-//    public static final int DEFAULT_CHRONICLE_NAME_CACHE_INITIAL_CAPACITY = 1024;
-//	public static final String CHRONICLE_NAME_CACHE_LOAD_FACTOR = "helios.pag.store.chronicle.namecache.loadfactor";
-//    public static final float DEFAULT_CHRONICLE_NAME_CACHE_LOAD_FACTOR = 0.75f;
-//	public static final String CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY = "helios.pag.store.chronicle.opaquecache.initialcap";
-//    public static final int DEFAULT_CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY = 1024;
-//	public static final String CHRONICLE_OPAQUE_CACHE_LOAD_FACTOR = "helios.pag.store.chronicle.opaquecache.loadfactor";
-//    public static final float DEFAULT_OPAQUE_NAME_CACHE_LOAD_FACTOR = 0.75f;
 	
 
 	/**
@@ -88,6 +82,7 @@ public class ChronicleConfiguration {
 		nameCacheLoadFactor = ConfigurationHelper.getFloatSystemThenEnvProperty(Constants.CHRONICLE_NAME_CACHE_LOAD_FACTOR, Constants.DEFAULT_CHRONICLE_NAME_CACHE_LOAD_FACTOR);
 		opaqueCacheInitialCapacity = ConfigurationHelper.getIntSystemThenEnvProperty(Constants.CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY, Constants.DEFAULT_CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY);
 		opaqueCacheLoadFactor = ConfigurationHelper.getFloatSystemThenEnvProperty(Constants.CHRONICLE_OPAQUE_CACHE_LOAD_FACTOR, Constants.DEFAULT_CHRONICLE_OPAQUE_CACHE_LOAD_FACTOR);
+		dataBitSizeHint = UnsafeAdapter.findNextPositivePowerOfTwo(ConfigurationHelper.getIntSystemThenEnvProperty(Constants.CHRONICLE_DATASIZE_PROP, Constants.DEFAULT_CHRONICLE_DATASIZE));
 		// Chronicle direct won't work unless UnsafeAdapter.FIVE_COPY is true.
 		unsafe = UnsafeAdapter.FIVE_COPY ? ConfigurationHelper.getBooleanSystemThenEnvProperty(Constants.CHRONICLE_UNSAFE_PROP, Constants.DEFAULT_CHRONICLE_UNSAFE ) : false;
 		dataDir = new File(ConfigurationHelper.getSystemThenEnvProperty(Constants.CHRONICLE_DIR, Constants.DEFAULT_CHRONICLE_DIR));
@@ -97,7 +92,7 @@ public class ChronicleConfiguration {
 		if(!dataDir.isDirectory()) {
 			throw new IllegalArgumentException("The directory [" + dataDir + "] is not valid");
 		}
-		LOG.info("Chronicle Configuration:\n\tDirectory: {}\n\tUnsafe:{}\n", dataDir, unsafe);
+		LOG.info("Chronicle Configuration:\n\tDirectory: {}\n\tDataBitSizeHint: {}\n\tUnsafe:{}\n", dataDir, dataBitSizeHint, unsafe);
 	}
 
 }

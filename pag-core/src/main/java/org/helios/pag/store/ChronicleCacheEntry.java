@@ -26,10 +26,15 @@ package org.helios.pag.store;
 
 import java.nio.charset.Charset;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import cern.colt.Arrays;
 
 import com.higherfrequencytrading.chronicle.Excerpt;
 import com.higherfrequencytrading.chronicle.ExcerptMarshallable;
+import com.higherfrequencytrading.chronicle.impl.IndexedChronicle;
+import com.higherfrequencytrading.chronicle.tools.ChronicleTools;
 
 /**
  * <p>Title: ChronicleCacheEntry</p>
@@ -49,7 +54,8 @@ public class ChronicleCacheEntry implements ExcerptMarshallable {
 	/** The timestamp the metric was created */
 	protected long timestamp = -1L;
 	
-	 
+	/** Static class logger */
+	protected static final Logger LOG = LogManager.getLogger(ChronicleCacheEntry.class);
 	
 	/** The chronicle cache instance */
 	protected static final ChronicleCache cache = ChronicleCache.getInstance();
@@ -96,6 +102,7 @@ public class ChronicleCacheEntry implements ExcerptMarshallable {
 		if(newExcerpt) exc = cache.newExcerpt();
 		try {
 			ChronicleCacheEntry entry = new ChronicleCacheEntry(globalId);
+			exc.index(globalId);
 			entry.readMarshallable(exc);
 			return entry;
 		} finally {
@@ -156,7 +163,31 @@ public class ChronicleCacheEntry implements ExcerptMarshallable {
 	}
 	
 	/**
+	 * Creates an unsaved stub with a no-entry value global id
+	 * @param metricName The optional metric name
+	 * @param opaqueKey The optional metric opaque key
+	 * @return the ChronicleCacheEntry stub
+	 */
+	public static ChronicleCacheEntry stub(String metricName, byte[] opaqueKey) {
+		return new ChronicleCacheEntry(IKeyCache.NO_ENTRY_VALUE, metricName, opaqueKey);
+	}
+	/**
+	 * Creates an unsaved stub
+	 * @param globalId The global id
+	 * @param metricName The optional metric name
+	 * @param opaqueKey The optional metric opaque key
+	 * @return the ChronicleCacheEntry stub
+	 */
+	public static ChronicleCacheEntry stub(long globalId, String metricName, byte[] opaqueKey) {
+		return new ChronicleCacheEntry(globalId, metricName, opaqueKey);
+	}
+	
+	
+	/**
 	 * Creates a new ChronicleCacheEntry
+	 * @param gid The assigned global id
+	 * @param metricName The optional metric name
+	 * @param opaqueKey The optional metric opaque key
 	 */
 	private ChronicleCacheEntry(long gid, String metricName, byte[] opaqueKey) {
 		globalId = gid;
@@ -174,28 +205,33 @@ public class ChronicleCacheEntry implements ExcerptMarshallable {
 	 */
 	@Override
 	public void readMarshallable(Excerpt in) throws IllegalStateException {
-		in.toStart();
-		if(in.readByte()==0) {
-			globalId = -1L;
-			metricName = null;
-			opaqueKey = null;
-			timestamp = -1L;
-		} else {
-			globalId = in.index();
-			timestamp = in.readLong();
-			int stringSize = in.readInt();
-			int byteSize = in.readInt();
-			byte[] bytes = null;
-			if(stringSize>0) {
-				bytes = new byte[stringSize];
-				in.read(bytes);
-				metricName = new String(bytes);
-				bytes = null;
- 			} else { metricName = null; }
-			if(byteSize>0) {
-				opaqueKey = new byte[byteSize];
-				in.read(opaqueKey);				
-			} else { opaqueKey = null; }			
+		in.position(0);
+		try {
+			if(in.readByte()==0) {
+				globalId = -1L;
+				metricName = null;
+				opaqueKey = null;
+				timestamp = -1L;
+			} else {
+				globalId = in.index();
+				timestamp = in.readLong();
+				int stringSize = in.readInt();
+				int byteSize = in.readInt();
+				byte[] bytes = null;
+				if(stringSize>0) {
+					bytes = new byte[stringSize];
+					in.read(bytes);
+					metricName = new String(bytes);
+					bytes = null;
+	 			} else { metricName = null; }
+				if(byteSize>0) {
+					opaqueKey = new byte[byteSize];
+					in.read(opaqueKey);				
+				} else { opaqueKey = null; }			
+			}
+		} catch (Exception ex) {
+			try { LOG.error("Failed to read from excerpt. id: {}, size: {}, cap: {}", in.index(), in.size(), in.capacity()); } catch (Exception x) {/* No Op */}
+			throw new RuntimeException("Failed to read from excerpt", ex);
 		}
 	}
 
@@ -282,8 +318,10 @@ public class ChronicleCacheEntry implements ExcerptMarshallable {
 		if (getClass() != obj.getClass())
 			return false;
 		ChronicleCacheEntry other = (ChronicleCacheEntry) obj;
-		if (globalId != other.globalId)
-			return false;
+		if(globalId != IKeyCache.NO_ENTRY_VALUE && other.globalId != IKeyCache.NO_ENTRY_VALUE) {
+			if (globalId != other.globalId)
+				return false;
+		}
 		if (metricName == null) {
 			if (other.metricName != null)
 				return false;

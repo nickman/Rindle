@@ -48,7 +48,7 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 	/** The guarded writing excerpt */
 	protected final Excerpt writer;
 	/** The write guarding spin lock */
-	protected final SpinLock writeSpinLock;
+	protected final SpinLock spinLock;
 	
 	/** The string key cache to keep metric names synchronized with */
 	protected final IStringKeyCache nameCache;
@@ -61,8 +61,13 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 	/** The number of inserts */
 	protected final AtomicLong insertCount = new AtomicLong(0L);
 	
+	/** Empty byte array constant */
+	public static final byte[] EMPTY_BYTE_ARR = {};
 	
-//	public static int ID_OFFSET = UnsafeAdapter.LONG_SIZE + 1;
+	/** The default charset */
+	public static final Charset CHARSET = Charset.defaultCharset();
+	
+	
 	
 	/**
 	 * Creates a new ChronicleCacheWriter
@@ -72,7 +77,7 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 	 * @param opaqueKeyCache The metric opaque key cache the writer will keep synchronized
 	 */
 	ChronicleCacheWriter(Chronicle chronicle, SpinLock spinLock, IStringKeyCache nameCache, IByteArrayKeyCache opaqueKeyCache) {
-		writeSpinLock = spinLock;
+		this.spinLock = spinLock;
 		this.chronicle = chronicle;
 		this.nameCache = nameCache;
 		this.opaqueCache = opaqueKeyCache;
@@ -105,12 +110,12 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 	
 	
 	public ChronicleCacheEntry writeEntry(ChronicleCacheEntry entry) {
-		writeSpinLock.xlock();
+		spinLock.xlock();
 		try {
 			writer.writeEnum(entry);
 			return writer.readEnum(ChronicleCacheEntry.class);
 		} finally {
-			writeSpinLock.xunlock();
+			spinLock.xunlock();
 		}
 	}
 	
@@ -122,35 +127,45 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 	 * @return the new global id
 	 */
 	public long newMetricEntry(String name, byte[] opaqueKey) {
-		writeSpinLock.xlock();
-		long gid = -1L;
+		
+		long ngid = name!=null ? nameCache.get(name) : IKeyCache.NO_ENTRY_VALUE;
+		long bgid = opaqueKey!=null ? opaqueCache.get(opaqueKey) : IKeyCache.NO_ENTRY_VALUE;
+		if(ngid!=IKeyCache.NO_ENTRY_VALUE || bgid!=IKeyCache.NO_ENTRY_VALUE) {
+			if(ngid!=IKeyCache.NO_ENTRY_VALUE && bgid!=IKeyCache.NO_ENTRY_VALUE) {
+				if(ngid != bgid) {
+					// merge the two entries into one new one
+					return mergeEntries(name, ngid, opaqueKey, bgid);
+				}
+				// retrieve stored and compare. if same, end, otherwise, delete and re-insert
+				return loadAndCompare(ngid, name, opaqueKey);
+			}
+			if(ngid!=IKeyCache.NO_ENTRY_VALUE) {
+				// retrieve stored and compare. if same, end, otherwise, delete and re-insert
+				return loadAndCompare(ngid, name, opaqueKey);
+			} 
+			// retrieve stored and compare. if same, end, otherwise, delete and re-insert
+			return loadAndCompare(bgid, name, opaqueKey);
+		} // no cache match. continue
+		
+		long gid = IKeyCache.NO_ENTRY_VALUE;
 		try {
+			spinLock.xlock();
 			int capacityEstimate = NAME_OFFSET + (name==null ? 0 : name.length()*2) + (opaqueKey==null ? 0 : opaqueKey.length); 
 			writer.startExcerpt(capacityEstimate);
 			writer.writeByte(1);
 			writer.writeLong(SystemClock.time());
-			if(name!=null) {
-				byte[] bytes = name.getBytes();
-				writer.writeInt(bytes.length);
-				writer.skipBytes(UnsafeAdapter.INT_SIZE);
-				writer.write(bytes);
-			} else {
-				writer.writeInt(0);
-			}
-			writer.position(BYTES_LENGTH_OFFSET);
-			if(opaqueKey!=null) {
-				writer.writeInt(opaqueKey.length);
-				writer.write(opaqueKey);				
-			} else {
-				writer.writeInt(0);
-			}
-//			writer.toEnd();
-			writer.finish();			
+			byte[] stringBytes = getBytes(name);
+			byte[] opaqueBytes = getBytes(opaqueKey);
+			writer.writeInt(stringBytes.length);
+			writer.writeInt(opaqueBytes.length);
+			writer.write(stringBytes);
+			writer.write(opaqueBytes);
+			writer.finish();
 			insertCount.incrementAndGet();
 			gid = writer.index();
 			return gid;
 		} finally {
-			writeSpinLock.xunlock();
+			spinLock.xunlock();
 			if(name!=null && gid != -1L) {
 				nameCache.put(name, gid);
 			}
@@ -159,6 +174,117 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 			}					
 		}	
 	}
+	
+	/**
+	 * Returns the bytes of the passed string
+	 * @param s The string to extract from
+	 * @return a byte array
+	 */
+	public static byte[] getBytes(String s) {
+		if(s==null || s.trim().isEmpty()) return EMPTY_BYTE_ARR;
+		return s.getBytes();
+	}
+	
+	/**
+	 * Returns the bytes of the passed byte array
+	 * @param arr The array to extract from
+	 * @return a byte array
+	 */
+	public static byte[] getBytes(byte[] arr) {
+		if(arr==null || arr.length==0) return EMPTY_BYTE_ARR;
+		return arr;
+	}
+	
+	
+	/**
+	 * Writes a new metric entry and returns the global id without acquiring a lock.
+	 * @param name The optional name of the metric. Ignored if null.
+	 * @param opaqueKey The optional opaque key of the metric. Ignored if null.
+	 * @return the new global id
+	 */
+	protected long _newMetricEntry(String name, byte[] opaqueKey) {
+		int capacityEstimate = NAME_OFFSET + (name==null ? 0 : name.length()*2) + (opaqueKey==null ? 0 : opaqueKey.length); 
+		writer.startExcerpt(capacityEstimate);
+		writer.writeByte(1);
+		writer.writeLong(SystemClock.time());
+		if(name!=null) {
+			byte[] bytes = name.getBytes(CHARSET);
+			writer.writeInt(bytes.length);
+			writer.skipBytes(UnsafeAdapter.INT_SIZE);
+			writer.write(bytes);
+		} else {
+			writer.writeInt(0);
+		}
+		writer.position(BYTES_LENGTH_OFFSET);
+		if(opaqueKey!=null) {
+			writer.writeInt(opaqueKey.length);
+			writer.write(opaqueKey);				
+		} else {
+			writer.writeInt(0);
+		}
+		writer.finish();			
+		insertCount.incrementAndGet();
+		return writer.index();
+	}
+	
+	/**
+	 * Merges two different chronicle entries, one with a name and one with an opaqe key into one common entry.
+	 * Updates the name and opaque cache.
+	 * @param name The metric name
+	 * @param ngid The metric name cache id
+	 * @param opaqueKey The opaque key
+	 * @param bgid The opaque key id
+	 * @return the new global id
+	 */
+	protected long mergeEntries(String name, long ngid, byte[] opaqueKey, long bgid) {
+		long gid = IKeyCache.NO_ENTRY_VALUE;
+		try {
+			spinLock.xlock();
+			_markEntryDeleted(ngid); 
+			_markEntryDeleted(bgid);
+			gid = _newMetricEntry(name, opaqueKey);			
+		} finally {
+			spinLock.xunlock();
+		}
+		nameCache.put(name, gid);
+		opaqueCache.put(opaqueKey, gid);
+		return gid;
+	}
+	
+	/**
+	 * Creates a new stub entry with the passed name and opaque key, then loads the chronicle entry with the passed gid.
+	 * The two are compared. If different, the loaded entry is deleted and the stub entry is saved. Updates the name and opaque cache.
+	 * Otherwise nothing. 
+	 * @param gid The global id of the chronicle entry to load
+	 * @param name The metric name
+	 * @param opaqueKey The metric opaque key
+	 * @return the winning global id
+	 */
+	protected long loadAndCompare(long gid, String name, byte[] opaqueKey) {
+		ChronicleCacheEntry newEntry = ChronicleCacheEntry.stub(name, opaqueKey);
+		ChronicleCacheEntry storedEntry = ChronicleCacheEntry.load(gid, null);
+		if(newEntry.equals(storedEntry)) return gid; // Nothing to do. Everything is unchanged.
+		// Delete the old one and write a new one
+		long newGlobalId = IKeyCache.NO_ENTRY_VALUE;
+		try {
+			spinLock.xlock();
+			_markEntryDeleted(gid);
+			newGlobalId = _newMetricEntry(name, opaqueKey);
+		} finally {
+			spinLock.xunlock();
+		}
+		if(newGlobalId != IKeyCache.NO_ENTRY_VALUE) {
+			if(name!=null) {
+				nameCache.put(name, newGlobalId);
+			}
+			if(opaqueKey!=null) {
+				opaqueCache.put(opaqueKey, newGlobalId);
+			}			
+		}
+		return newGlobalId;
+	}
+	
+	
 	
 	/**
 	 * Writes a new metric entry and returns the global id
@@ -193,7 +319,7 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 	 * @param gid The id of the entry to delete
 	 */
 	public void markEntryDeleted(long gid) {
-		writeSpinLock.xlock();
+		spinLock.xlock();
 		String metricName = null;
 		byte[] opaqueKey = null;
 		try {
@@ -206,7 +332,7 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 			deletedEntries.incrementAndGet();
 			deletedSize.addAndGet(writer.size());
 		} finally {
-			writeSpinLock.xunlock();
+			spinLock.xunlock();
 		}		
 		if(metricName!=null) {
 			nameCache.remove(metricName);
@@ -215,6 +341,21 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 			opaqueCache.remove(opaqueKey);
 		}		
 	}
+	
+	/**
+	 * Marks an entry as deleted without messing with the lock and without cache updates.
+	 * Assumes the lock has been acquired before now.
+	 * @param gid The id of the entry to delete
+	 */
+	protected void _markEntryDeleted(long gid) {
+		writer.index(gid);
+		writer.position(DELETE_OFFSET).writeByte(0);
+		writer.writeLong(System.currentTimeMillis());		
+		writer.finish();	
+		deletedEntries.incrementAndGet();
+		deletedSize.addAndGet(writer.size());
+	}
+	
 	
 	
 	/**

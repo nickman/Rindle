@@ -121,6 +121,7 @@ public class TestKeyedCaches extends BaseTest {
 	protected static String randomSample() {
 		StringBuilder b = new StringBuilder();
 		int fragments = nextPosInt(10);
+		if(fragments<1) fragments = 1;
 		for(int x = 0; x < fragments; x++) {
 			b.append(getRandomFragment()).append(RANDOM_CHARS[nextPosInt(RANDOM_CHAR_MAX)]);
 		}
