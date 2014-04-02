@@ -62,11 +62,20 @@ public class ChronicleCache {
 	public static final String CACHE_NAME = "MetricCache";
 	/** The defrag chronicle name */
 	public static final String DEFRAG_NAME = "Defrag";
+	/** The read only chronicle name */
+	public static final String RO_NAME = "ReadOnly";
 	
+	
+	/** Read only clone of the main, used by calling threads for reads while the main is defragged */
+	protected ChronicleCache readOnlyCache = null;
 	
 	/** The write guarding spin lock */
 	protected final SpinLock writeSpinLock = UnsafeAdapter.allocateSpinLock();
+	/** The read only redirect spin lock */
+	protected final SpinLock readOnlySpinLock = UnsafeAdapter.allocateSpinLock();
 
+	/** The cache name */
+	protected final String cacheName;
 	
 	
 	/** The general config for chronicles */
@@ -101,24 +110,41 @@ public class ChronicleCache {
 					instance = new ChronicleCache(CACHE_NAME);
 				}
 			}
-		}
-		return instance;
+		}		
+		return instance.readOnlySpinLock.isLocked() ? instance.readOnlyCache : instance;
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#clone()
+	 */
+	@Override
+	protected ChronicleCache clone() {
+		return new ChronicleCache(this, RO_NAME);
 	}
 	
 	
+	/**
+	 * Defragments the main chronicle cache
+	 */
 	synchronized void defragChronicle() {
-		ChronicleCache cc = null;
+		log.info("Defrag Starting....");
+		ChronicleCache defrag = null;
+		
+		//readOnlySpinLock
 		Excerpt defragEx = null;
 		try {
-			cc = new ChronicleCache(DEFRAG_NAME);
-			cc.purge();			
-			log.info("Defrag Starting....");
+			readOnlyCache = clone();
+			readOnlySpinLock.xlock(true);
+			defrag = new ChronicleCache(DEFRAG_NAME);
+			defrag.purge();						
+			ElapsedTime et = SystemClock.startClock();
 			final long preSize = indexedChronicle.size();
 			long defragCount = 0, deletedCount = 0, retainedCount = 0;
 			writer.spinLock.xlock(true);
-			final byte[] xfer = new byte[Integer.MAX_VALUE/100];
+			final byte[] xfer = new byte[Integer.MAX_VALUE/10000];
 			Excerpt from = writer.writer;
-			Excerpt to = cc.newExcerpt();
+			Excerpt to = defrag.newExcerpt();
 			defragEx = to;
 			from.toStart();
 			while(from.hasNextIndex()) {
@@ -146,7 +172,7 @@ public class ChronicleCache {
 				retainedCount++;
 			}
 			System.gc();
-			log.info("Defrag Phase 1 Complete. Read {} Records. Deleted: {}, Retained: {}", defragCount, deletedCount, retainedCount);
+			log.info("Defrag Phase 1 Complete in {} ms. Read {} Records. Deleted: {}, Retained: {}", et.elapsedMs(), defragCount, deletedCount, retainedCount);
 			purge();
 			Excerpt tmp = from;
 			from = to;
@@ -170,20 +196,38 @@ public class ChronicleCache {
 				to.write(xfer, 0, size);
 				to.finish();
 			}
-			System.gc();
-			final long postSize = indexedChronicle.size();
-			log.info("Defrag Phase 2 Complete. Defragged from {} records to {} records", preSize, postSize);
-		} finally {
-			writer.spinLock.xunlock();
 			if(defragEx != null) try { defragEx.close(); } catch (Exception x) { /* No Op */}
 			defragEx = null;
-			if(cc != null) try { cc.indexedChronicle.clear(); } catch (Exception x) { /* No Op */} 
-			if(cc != null) try { cc.indexedChronicle.close(); } catch (Exception x) { /* No Op */}
-			cc = null;
+			if(defrag != null) try { defrag.indexedChronicle.clear(); } catch (Exception x) { /* No Op */} 
+			if(defrag != null) try { defrag.indexedChronicle.close(); } catch (Exception x) { /* No Op */}
+			defrag = null;
+			
+			System.gc();
+			final long postSize = indexedChronicle.size();
+			log.info("Defrag Phase 2 Complete in {} ms. Defragged from {} records to {} records", et.elapsedMs(), preSize, postSize);
+			clearCache();
+			load();
+			log.info("Defrag Phase 3 Complete in {} ms. Name Cache: {}, Opaque Cache: {}", et.elapsedMs(), nameCache.size(), opaqueCache.size());
+		} finally {
+			readOnlySpinLock.xunlock();
+			writer.spinLock.xunlock();
+
+			if(defragEx != null) try { defragEx.close(); } catch (Exception x) { /* No Op */}
+			defragEx = null;
+			if(defrag != null) try { defrag.indexedChronicle.clear(); } catch (Exception x) { /* No Op */} 
+			if(defrag != null) try { defrag.indexedChronicle.close(); } catch (Exception x) { /* No Op */}
+			defrag = null;
+			if(readOnlyCache != null) try { readOnlyCache.purge(); } catch (Exception x) { /* No Op */} 
+			if(readOnlyCache != null) try { readOnlyCache.indexedChronicle.close(); } catch (Exception x) { /* No Op */}
+			readOnlyCache = null;
 			System.gc();
 			ChronicleTools.deleteOnExit(config.dataDir.getAbsolutePath() + File.separator + DEFRAG_NAME);
+			ChronicleTools.deleteOnExit(config.dataDir.getAbsolutePath() + File.separator + RO_NAME);
 		}
 	}
+	
+	
+	
 	
 	
 	
@@ -254,26 +298,29 @@ public class ChronicleCache {
 	 */
 	private void purge() {
 		indexedChronicle.clear();
-		nameCache.clear();
-		opaqueCache.clear();
+		if(nameCache!=null) {
+			nameCache.clear();
+			nameCache.trimToSize();
+		}
+		if(opaqueCache!=null) {
+			opaqueCache.clear();
+			opaqueCache.trimToSize();
+		}
 	}
 	
 	/**
 	 * Clears the name and opaque caches
 	 */
 	private void clearCache() {
-		nameCache.clear();
-		opaqueCache.clear();
+		if(nameCache!=null) nameCache.clear();
+		if(opaqueCache!=null) opaqueCache.clear();
 	}
 	
 
-	/**
-	 * Creates a new ChronicleCache
-	 * @param cacheName The logical name of this chronicle store
-	 */
-	private ChronicleCache(String cacheName) {
+	private ChronicleCache(ChronicleCache otherCache, String cacheName) {
+		this.cacheName = cacheName;
 		final boolean isMain = CACHE_NAME.equals(cacheName);
-		log = LogManager.getLogger(getClass());
+		log = LogManager.getLogger(getClass().getName() + "." + cacheName);
 		String fileName = null;
 		try {
 			fileName = config.dataDir.getAbsolutePath() + File.separator + cacheName;
@@ -281,8 +328,41 @@ public class ChronicleCache {
 			indexedChronicle.useUnsafe(config.unsafe);
 			indexedChronicle.multiThreaded(isMain);
 			indexedChronicle.setEnumeratedMarshaller(new ChronicleCacheEntryMarshaller(writeSpinLock));
-			nameCache = new StringKeyChronicleCache(config.nameCacheInitialCapacity, config.nameCacheLoadFactor);
-			opaqueCache = new ByteArrayKeyChronicleCache(config.opaqueCacheInitialCapacity, config.opaqueCacheLoadFactor);
+			nameCache = new StringKeyChronicleCache((StringKeyChronicleCache)otherCache.nameCache);
+			opaqueCache = new ByteArrayKeyChronicleCache((ByteArrayKeyChronicleCache)otherCache.opaqueCache);
+			writer = new ChronicleCacheWriter(indexedChronicle, writeSpinLock, nameCache, opaqueCache);
+			log.info(StringHelper.banner("Created ChronicleCache [%s]", cacheName));
+			if(isMain) load();
+		} catch (IOException e) {
+			String msg = "Failed to create IndexedChronicle in [" + fileName + "]";
+			log.error(msg, e);
+			throw new RuntimeException(msg, e);
+		}
+		
+	}
+	
+	/**
+	 * Creates a new ChronicleCache
+	 * @param cacheName The logical name of this chronicle store
+	 */
+	private ChronicleCache(String cacheName) {
+		this.cacheName = cacheName;
+		final boolean isMain = CACHE_NAME.equals(cacheName);
+		log = LogManager.getLogger(getClass().getName() + "." + cacheName);
+		String fileName = null;
+		try {
+			fileName = config.dataDir.getAbsolutePath() + File.separator + cacheName;
+			indexedChronicle = new IndexedChronicle(fileName, config.dataBitSizeHint, ByteOrder.nativeOrder(), true, false);
+			indexedChronicle.useUnsafe(config.unsafe);
+			indexedChronicle.multiThreaded(isMain);
+			indexedChronicle.setEnumeratedMarshaller(new ChronicleCacheEntryMarshaller(writeSpinLock));
+			if(isMain) {
+				nameCache = new StringKeyChronicleCache(config.nameCacheInitialCapacity, config.nameCacheLoadFactor);
+				opaqueCache = new ByteArrayKeyChronicleCache(config.opaqueCacheInitialCapacity, config.opaqueCacheLoadFactor);
+			} else {
+				nameCache = null;
+				opaqueCache = null;
+			}
 			writer = new ChronicleCacheWriter(indexedChronicle, writeSpinLock, nameCache, opaqueCache);
 			log.info(StringHelper.banner("Created ChronicleCache [%s]", cacheName));
 			if(isMain) load();
@@ -298,45 +378,54 @@ public class ChronicleCache {
 	}
 	
 	protected void load() {
-		Excerpt exc = indexedChronicle.createExcerpt();
+		Excerpt exc = null; 
 		long loadCount = 0, nameCacheEntries = 0, opaqueCacheEntries = 0;
-		
-		while(exc.hasNextIndex()) {
-			if(!exc.nextIndex()) break;
-			exc.position(0);
-			if(exc.readByte()==0) {
-				continue;
+		try {
+			exc = indexedChronicle.createExcerpt();
+			byte[] xfer = new byte[Integer.MAX_VALUE/10000];
+			while(exc.hasNextIndex()) {
+				if(!exc.nextIndex()) break;
+				exc.position(0);
+				if(exc.readByte()==0) {
+					continue;
+				}
+				long key = exc.index();
+				if(exc.capacity() < IChronicleCacheEntry.BYTES_LENGTH_OFFSET) {
+					log.info("Corrupt Entry: {}, Size:{}", key, exc.capacity());
+	//				exc.position(0);
+	//				exc.writeByte(0);
+	//				exc.toEnd();
+	//				exc.finish();
+	//				exc.flush();
+					continue;
+					
+				}
+				exc.readLong();					
+				int s_size = exc.readInt();
+				int b_size = exc.readInt();
+				if(s_size>0) {					
+						
+					if (s_size < 0 || 0 < 0 || 0 + s_size > xfer.length)
+			            throw new IllegalArgumentException("OUCH. Failed to read string of size: " + s_size);
+					exc.read(xfer, 0, s_size);			
+					String metricName = new String(xfer, 0, s_size, CHARSET);
+					nameCache.put(metricName, key);
+					nameCacheEntries++;
+				}
+				if(b_size>0) {
+					byte[] bytes = new byte[b_size];
+					exc.read(bytes);
+					opaqueCache.put(bytes, key);
+					bytes = null;
+					opaqueCacheEntries++;
+				}				
+				loadCount++;
 			}
-			long key = exc.index();
-			if(exc.capacity() < IChronicleCacheEntry.BYTES_LENGTH_OFFSET) {
-				log.info("Corrupt Entry: {}, Size:{}", key, exc.capacity());
-//				exc.position(0);
-//				exc.writeByte(0);
-//				exc.toEnd();
-//				exc.finish();
-//				exc.flush();
-				continue;
-				
-			}
-			exc.readLong();					
-			int s_size = exc.readInt();
-			int b_size = exc.readInt();
-			if(s_size>0) {
-				byte[] bytes = new byte[s_size];
-				exc.read(bytes);				
-				String metricName = new String(bytes, CHARSET);
-				nameCache.put(metricName, key);
-				nameCacheEntries++;
-			}
-			if(b_size>0) {
-				byte[] bytes = new byte[b_size];
-				exc.read(bytes);
-				opaqueCache.put(bytes, key);
-				opaqueCacheEntries++;
-			}				
-			loadCount++;
+			System.gc();
+			log.info(StringHelper.banner("Loaded %s Cache Records\n\tName Cache: %s\n\tOpaque Cache: %s" , loadCount, nameCacheEntries, opaqueCacheEntries));
+		} finally {
+			if(exc!=null) try { exc.close(); } catch (Exception x) {/* No Op */}
 		}
-		log.info(StringHelper.banner("Loaded %s Cache Records\n\tName Cache: %s\n\tOpaque Cache: %s" , loadCount, nameCacheEntries, opaqueCacheEntries));
 	}
 
 	/**

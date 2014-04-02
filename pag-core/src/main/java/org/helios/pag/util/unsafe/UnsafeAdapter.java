@@ -1963,6 +1963,25 @@ public class UnsafeAdapter {
 	}
 	
 	/**
+	 * Indicates if the spin lock at the specified address is currently held by any thread
+	 * @param address The address of the spin lock
+	 * @return true if the spin lock at the specified address is currently held by any thread, false otherwise
+	 */
+	public static boolean xislocked(final long address) {
+		return getLong(address)!=NO_LOCK;
+	}
+	
+	/**
+	 * Indicates if the spin lock at the specified address is held by the current thread
+	 * @param address The address of the spin lock
+	 * @return true if the spin lock at the specified address is held by the current thread, false otherwise
+	 */
+	public static boolean xislockedbyt(final long address) {
+		final long tId = Thread.currentThread().getId();
+		return getLong(address)==tId;
+	}
+	
+	/**
 	 * Acquires the lock at the passed address exclusively with no barging
 	 * @param address The address of the lock
 	 * @param barge If true, does not yield between locking attempts. Should only be used by 
@@ -2009,6 +2028,19 @@ public class UnsafeAdapter {
 		 */
 		public void xunlock();
 		
+		/**
+		 * Indicates if the spin lock is currently held by any thread
+		 * @return true if the spin lock is currently held by any thread, false otherwise
+		 */
+		public boolean isLocked();
+		
+		/**
+		 * Indicates if the spin lock is currently held by the calling thread
+		 * @return true if the spin lock is currently held by the calling thread, false otherwise
+		 */
+		public boolean isLockedByMe();
+		
+		
 	}
 	
 	/**
@@ -2049,8 +2081,10 @@ public class UnsafeAdapter {
 		}
 
 		/**
-		 * Acquires the lock with the calling thread
+		 * {@inheritDoc}
+		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock#xlock()
 		 */
+		@Override
 		public void xlock() {
 			UnsafeAdapter.xlock(address);
 		}
@@ -2065,11 +2099,32 @@ public class UnsafeAdapter {
 		}
 		
 		/**
-		 * Releases the lock if it is held by the calling thread
+		 * {@inheritDoc}
+		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock#xunlock()
 		 */
+		@Override
 		public void xunlock() {
 			UnsafeAdapter.xunlock(address);
 		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock#isLocked()
+		 */
+		@Override
+		public boolean isLocked() {
+			return UnsafeAdapter.xislocked(address);
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock#isLockedByMe()
+		 */
+		@Override
+		public boolean isLockedByMe() {
+			return UnsafeAdapter.xislockedbyt(address);
+		}
+
 	}
 	
 	/**
@@ -2158,6 +2213,18 @@ public class UnsafeAdapter {
 				compareAndSwapLong(null, address + LONG_SIZE, tId, NO_LOCK);
 				compareAndSwapLong(null, address, JVM_PID, NO_LOCK);
 			}
+		}
+
+		@Override
+		public boolean isLocked() {
+			// TODO Auto-generated method stub
+			return false;
+		}
+
+		@Override
+		public boolean isLockedByMe() {
+			// TODO Auto-generated method stub
+			return false;
 		}
 	}
 	

@@ -58,6 +58,15 @@ public class ByteArrayKeyChronicleCache  implements IByteArrayKeyCache {
 	}
 	
 	/**
+	 * ByteArrayKeyChronicleCache Copy Ctor
+	 * @param otherCache the cache to copy
+	 */
+	public ByteArrayKeyChronicleCache(ByteArrayKeyChronicleCache otherCache) {
+		cache = new TLongLongHashMap(otherCache.cache);
+	}
+
+	
+	/**
 	 * Creates a new ByteArrayKeyChronicleCache with the default load factor
      * @param initialCapacity used to find a prime capacity for the table.
 	 */

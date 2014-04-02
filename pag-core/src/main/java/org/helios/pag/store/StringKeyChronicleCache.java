@@ -58,6 +58,14 @@ public class StringKeyChronicleCache  implements IStringKeyCache {
 	}
 	
 	/**
+	 * StringKeyChronicleCache Copy Ctor
+	 * @param otherCache the cache to copy
+	 */
+	public StringKeyChronicleCache(StringKeyChronicleCache otherCache) {
+		cache = new TLongLongHashMap(otherCache.cache);
+	}
+	
+	/**
 	 * Creates a new StringKeyChronicleCache with the default load factor
      * @param initialCapacity used to find a prime capacity for the table.
 	 */
