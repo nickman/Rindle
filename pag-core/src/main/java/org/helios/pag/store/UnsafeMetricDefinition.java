@@ -30,6 +30,9 @@ import java.util.Arrays;
 import org.helios.pag.util.unsafe.DeAllocateMe;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 
+import com.higherfrequencytrading.chronicle.Excerpt;
+import com.higherfrequencytrading.chronicle.ExcerptMarshallable;
+
 /**
  * <p>Title: UnsafeMetricDefinition</p>
  * <p>Description: An {@link IMetricDefinition} with all values stored off heap</p> 
@@ -38,9 +41,9 @@ import org.helios.pag.util.unsafe.UnsafeAdapter;
  * <p><code>org.helios.pag.store.UnsafeMetricDefinition</code></p>
  */
 
-public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe {
+public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe, ExcerptMarshallable {
 	/** The native address of the metric definition */
-	protected final long[] address = new long[1];
+	protected final long[] address = new long[]{-1L};
 	
 	/** The offset of the deletion flag */
 	public static final byte DELETE_FLAG = 0;
@@ -63,23 +66,53 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe {
 	public static final byte[] EMPTY_BYTE_ARR = {};
 	/** The default charset */
 	public static final Charset CHARSET = Charset.defaultCharset();
+	
+	/**
+	 * Loads a stored UnsafeMetricDefinition
+	 * @param index The chronicle index at which the metric to load is at. If -1, the excerpt is already at the desired index.
+	 * @param exc The excerpt to load with. If null, a new one will be created and closed after load
+	 */
+	protected UnsafeMetricDefinition(long index, Excerpt exc) {		
+		final boolean isNew = exc==null;
+		try {
+			if(isNew) {
+				if(index==-1L) {
+					throw new IllegalArgumentException("If a -1 index is provided, a pre-navigated excerpt must be supplied");
+				}
+				exc = ChronicleCache.getInstance().newExcerpt();
+			}
+			if(index!=-1L) exc.index(index);
+			UnsafeAdapter.registerForDeAlloc(this);
+			readMarshallable(exc);
+		} finally {
+			if(isNew) try { exc.close(); } catch (Exception x) {/* No Op */}
+		}
+	}
+
+	/**
+	 * Loads a stored UnsafeMetricDefinition
+	 * @param exc The excerpt to load with, assumed to be pre-navigated to the target index
+	 */
+	protected UnsafeMetricDefinition(Excerpt exc) {
+		this(-1L, exc);
+	}
 
 	
 	/**
 	 * Creates a new UnsafeMetricDefinition
-	 * @param id The global id of the metric
+	 * @param globalId The global id of the metric
 	 * @param name The metric name
 	 * @param opaqueKey The opaque key
 	 */
-	protected UnsafeMetricDefinition(long id, String name, byte[] opaqueKey) {		
+	protected UnsafeMetricDefinition(long globalId, String name, byte[] opaqueKey) {		
 		byte[] nameBytes = getBytes(name);
 		byte[] opaqueBytes = getBytes(opaqueKey);
 		int size = BASE_SIZE + nameBytes.length + opaqueBytes.length;
 		address[0] = UnsafeAdapter.allocateAlignedMemory(size);
-		UnsafeAdapter.registerForDeAlloc(this);
+		UnsafeAdapter.registerForDeAlloc(this);		
 		UnsafeAdapter.putByte(address[0], DELETE_FLAG);
 		UnsafeAdapter.putInt(address[0] + SIZE, size);
-		UnsafeAdapter.putLong(address[0] + ID, id);
+		UnsafeAdapter.putLong(address[0] + ID, globalId);
 		UnsafeAdapter.putLong(address[0] + TIMESTAMP, System.currentTimeMillis());
 		UnsafeAdapter.putInt(address[0] + NAME_SIZE, nameBytes.length);
 		UnsafeAdapter.putInt(address[0] + OPAQUE_SIZE, opaqueBytes.length);
@@ -90,6 +123,73 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe {
 			UnsafeAdapter.copyMemory(opaqueBytes, UnsafeAdapter.BYTE_ARRAY_OFFSET, null, address[0] + NAME_BYTES + nameBytes.length, opaqueBytes.length);
 		}		
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.higherfrequencytrading.chronicle.ExcerptMarshallable#readMarshallable(com.higherfrequencytrading.chronicle.Excerpt)
+	 */
+	@Override
+	public void readMarshallable(Excerpt in) throws IllegalStateException {
+		final int size = in.readInt(SIZE);
+		if(address[0]!=-1L) {
+			UnsafeAdapter.freeMemory(address[0]);
+		}
+		address[0] = UnsafeAdapter.allocateAlignedMemory(size);		
+		if(in instanceof MemCopyExcerpt) {		
+			MemCopyExcerpt me = (MemCopyExcerpt)in;
+			me.readMemory(address[0], 0, size);
+		} else {
+			UnsafeAdapter.putByte(address[0], in.readByte());
+			UnsafeAdapter.putInt(address[0] + SIZE, in.readInt());
+			UnsafeAdapter.putLong(address[0] + ID, in.readLong());
+			UnsafeAdapter.putLong(address[0] + TIMESTAMP, in.readLong());
+			int _ns = in.readInt(), _os = in.readInt();
+			UnsafeAdapter.putInt(address[0] + NAME_SIZE, _ns);
+			UnsafeAdapter.putInt(address[0] + OPAQUE_SIZE, _os);
+			if(_ns>0) {
+				byte[] nameBytes = new byte[_ns];
+				in.read(nameBytes);
+				UnsafeAdapter.copyMemory(nameBytes, UnsafeAdapter.BYTE_ARRAY_OFFSET, null, address[0] + NAME_BYTES, nameBytes.length);
+			}
+			if(_os>0) {
+				byte[] opaqueBytes = new byte[_ns];
+				in.read(opaqueBytes);				
+				UnsafeAdapter.copyMemory(opaqueBytes, UnsafeAdapter.BYTE_ARRAY_OFFSET, null, address[0] + NAME_BYTES + _ns, opaqueBytes.length);
+			}		
+		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see com.higherfrequencytrading.chronicle.ExcerptMarshallable#writeMarshallable(com.higherfrequencytrading.chronicle.Excerpt)
+	 */
+	@Override
+	public void writeMarshallable(Excerpt out) {
+		if(getId()==NO_ENTRY_VALUE) {
+			out.startExcerpt(getByteSize());
+			setId(ChronicleCache.getInstance().newMetric(out.index()));
+		}
+		out.position(0);
+		if(out instanceof MemCopyExcerpt) {		
+			MemCopyExcerpt me = (MemCopyExcerpt)out;
+			me.writeMemory(address[0], 0, getByteSize());
+		} else {
+			out.writeByte(DELETE_FLAG);
+			out.writeInt(getByteSize());
+			out.writeLong(getId());
+			out.writeLong(getCreatedTimestamp());
+			int _nameSize = getNameSize();
+			int _opaqueSize = getOpaqueSize();
+			out.writeInt(_nameSize);
+			out.writeInt(_opaqueSize);
+			if(_nameSize>0) out.write(getNameBytes());
+			if(_opaqueSize>0) out.write(getOpaqueKey());
+			out.finish();
+		}
+		
+	}
+	
+	
 	
 	/**
 	 * Returns the size of the name
@@ -141,23 +241,42 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe {
 	}
 
 	
-	protected void setName(String name) {
-		int currentSize = getNameSize();
-		byte[] nameBytes = getBytes(name);
-		if(currentSize!=nameBytes.length) {
-			if(name==null) {
-				// name has been cleared
-			} else {
-				// name has changed
-			}
-		} else {
-			if(name!=null) {
-				// name chaned from non-zero to another non-zero
-			} else {
-				// no change. Was zero, and still is zero.
-			}
-		}		
-	}
+//	protected void setName(String name) {
+//		int currentSize = getNameSize();
+//		byte[] nameBytes = getBytes(name);
+//		int diff = currentSize - nameBytes.length;
+//		if(diff != 0) {
+//			// something changed
+//			if(name==null) {
+//				// name has been cleared, size is reduced by nameBytes.length
+//				int newSize = getByteSize() - nameBytes.length;
+//				long newAddress = UnsafeAdapter.allocateAlignedMemory(newSize);
+//				UnsafeAdapter.copyMemory(address[0], newAddress, BASE_SIZE);
+//				
+//				if(getOpaqueSize()>0) {
+//					UnsafeAdapter.copyMemory(address[0] + currentSize, newAddress, BASE_SIZE);
+//				}
+//			} else {
+//				// name has changed
+//				if(diff < 0) {
+//					// name was null, now it's not
+//				} else {
+//					// name changed from non-null to a new non-null
+//				}
+//			}
+//		} else {
+//			if(name!=null) {				
+//				if(name.equals(getName())) {
+//					// no change
+//				} else {
+//					// name changed from non-zero to another non-zero (of the same size)
+//				}
+//				
+//			} else {
+//				// no change. Was zero, and still is zero.
+//			}
+//		}		
+//	}
 	
 
 	/**
@@ -193,11 +312,21 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe {
 	 */
 	@Override
 	public String getName() {
+		byte[] bytes = getNameBytes();
+		if(bytes.length==0) return null;
+		return new String(bytes, CHARSET);
+	}
+	
+	/**
+	 * Returns the bytes for the name
+	 * @return the bytes for the name
+	 */
+	public byte[] getNameBytes() {
 		int size = getNameSize();
-		if(size==0) return null;
+		if(size==0) return EMPTY_BYTE_ARR;
 		byte[] bytes = new byte[size];
 		UnsafeAdapter.copyMemory(null, address[0] + NAME_BYTES, bytes, UnsafeAdapter.BYTE_ARRAY_OFFSET, size);
-		return new String(bytes, CHARSET);
+		return bytes;
 	}
 
 	/**
@@ -266,6 +395,52 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe {
 		builder.append("]");
 		return builder.toString();
 	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#hashCode()
+	 */
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + (int) (getId() ^ (getId() >>> 32));
+		result = prime * result
+				+ ((getName() == null) ? 0 : getName().hashCode());
+		result = prime * result + java.util.Arrays.hashCode(getOpaqueKey());
+		return result;
+	}	
 	
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#equals(java.lang.Object)
+	 */
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (!(obj instanceof IMetricDefinition))
+			return false;
+		IMetricDefinition other = (IMetricDefinition) obj;
+		if(getId() != NO_ENTRY_VALUE && other.getId() != IKeyCache.NO_ENTRY_VALUE) {
+			if (getId() != other.getId())
+				return false;
+		}
+		if (getName() == null) {
+			if (other.getName() != null)
+				return false;
+		} else if (!getName().equals(other.getName()))
+			return false;
+		
+		if (getOpaqueKey() == null) {
+			if (other.getOpaqueKey() != null)
+				return false;
+		} else if (!java.util.Arrays.equals(getOpaqueKey(), other.getOpaqueKey()))
+			return false;
+		
+		return true;
+	}
 
 }

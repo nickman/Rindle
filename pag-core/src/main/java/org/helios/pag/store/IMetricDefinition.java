@@ -59,6 +59,9 @@ public interface IMetricDefinition {
 	public static final byte[] EMPTY_BYTE_ARR = {};
 	/** The default charset */
 	public static final Charset CHARSET = Charset.defaultCharset();
+	/** The cache no entry value, meaning a non-existent value not in the cache */
+	public static final long NO_ENTRY_VALUE = -1L;
+	
 	
 	/**
 	 * Returns the metric global id

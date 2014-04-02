@@ -26,10 +26,10 @@ package org.helios.pag.store;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
-import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -65,6 +65,9 @@ public class ChronicleCache {
 	/** The read only chronicle name */
 	public static final String RO_NAME = "ReadOnly";
 	
+	/** Factory for global ids */
+	protected final AtomicLong idFactory = new AtomicLong();
+	
 	
 	/** Read only clone of the main, used by calling threads for reads while the main is defragged */
 	protected ChronicleCache readOnlyCache = null;
@@ -81,6 +84,9 @@ public class ChronicleCache {
 	/** The general config for chronicles */
 	protected final ChronicleConfiguration config = new ChronicleConfiguration();
 	
+	
+	/** The cache mapping the global id of a metric to the underlying chronicle index it is stored in */
+	protected final ILongKeyCache idCache;
 	/** The string key cache to keep metric names synchronized with */
 	protected final IStringKeyCache nameCache;
 	/** The opaque key cache to keep metric names synchronized with */
@@ -112,6 +118,44 @@ public class ChronicleCache {
 			}
 		}		
 		return instance.readOnlySpinLock.isLocked() ? instance.readOnlyCache : instance;
+	}
+	
+	/**
+	 * Executes a write task within a spin lock acquire/release
+	 * @param task The task to execute
+	 * @return the return value of the task
+	 */
+	public <T> T executeWriteTask(WriteTask<T> task) {
+		return writer.executeWriteTask(task);
+	}
+	
+	
+	/**
+	 * Returns a new assigned global id
+	 * @return a new assigned global id
+	 */
+	long nextGlobalID() {
+		return idFactory.incrementAndGet();
+	}
+	
+	/**
+	 * Initalizes a new metric entry
+	 * @param chronicleIndex The chronicle index where the metric was written
+	 * @return the assigned global id
+	 */
+	long newMetric(long chronicleIndex) {
+		long gid = nextGlobalID();
+		idCache.put(gid, chronicleIndex);
+		return gid;
+	}
+	
+	/**
+	 * Returns the chronicle index for the passed global ID
+	 * @param globalId The metric global ID
+	 * @return the chronicle index the metric resides at or the no_value token
+	 */
+	public long getChronicleIndex(long globalId) {
+		return idCache.get(globalId);
 	}
 	
 	/**
@@ -328,6 +372,7 @@ public class ChronicleCache {
 			indexedChronicle.useUnsafe(config.unsafe);
 			indexedChronicle.multiThreaded(isMain);
 			indexedChronicle.setEnumeratedMarshaller(new ChronicleCacheEntryMarshaller(writeSpinLock));
+			idCache = new LongKeyChronicleCache((LongKeyChronicleCache)otherCache.idCache);
 			nameCache = new StringKeyChronicleCache((StringKeyChronicleCache)otherCache.nameCache);
 			opaqueCache = new ByteArrayKeyChronicleCache((ByteArrayKeyChronicleCache)otherCache.opaqueCache);
 			writer = new ChronicleCacheWriter(indexedChronicle, writeSpinLock, nameCache, opaqueCache);
@@ -356,6 +401,7 @@ public class ChronicleCache {
 			indexedChronicle.useUnsafe(config.unsafe);
 			indexedChronicle.multiThreaded(isMain);
 			indexedChronicle.setEnumeratedMarshaller(new ChronicleCacheEntryMarshaller(writeSpinLock));
+			idCache = new LongKeyChronicleCache(config.idCacheInitialCapacity, config.idCacheLoadFactor);
 			if(isMain) {
 				nameCache = new StringKeyChronicleCache(config.nameCacheInitialCapacity, config.nameCacheLoadFactor);
 				opaqueCache = new ByteArrayKeyChronicleCache(config.opaqueCacheInitialCapacity, config.opaqueCacheLoadFactor);
@@ -373,13 +419,24 @@ public class ChronicleCache {
 		}
 	}
 	
+	/**
+	 * Creates a new excerpt for this chronicle 
+	 * @return the created excerpt
+	 */
 	Excerpt newExcerpt() {
-		return indexedChronicle.createExcerpt();
+		if(indexedChronicle.useUnsafe()) {
+			return new DirectUnsafeExcerpt(indexedChronicle);
+		}
+		return new MemCopyByteBufferExcerpt(indexedChronicle);
 	}
 	
+	/**
+	 * Loads the chronicle into cache
+	 */
 	protected void load() {
 		Excerpt exc = null; 
 		long loadCount = 0, nameCacheEntries = 0, opaqueCacheEntries = 0;
+		UnsafeMetricDefinition metricCursor = null;
 		try {
 			exc = indexedChronicle.createExcerpt();
 			byte[] xfer = new byte[Integer.MAX_VALUE/10000];
@@ -389,37 +446,32 @@ public class ChronicleCache {
 				if(exc.readByte()==0) {
 					continue;
 				}
-				long key = exc.index();
-				if(exc.capacity() < IChronicleCacheEntry.BYTES_LENGTH_OFFSET) {
-					log.info("Corrupt Entry: {}, Size:{}", key, exc.capacity());
-	//				exc.position(0);
-	//				exc.writeByte(0);
-	//				exc.toEnd();
-	//				exc.finish();
-	//				exc.flush();
+				final long index = exc.index();
+				if(index==-1) continue;
+				if(exc.capacity() < IMetricDefinition.BASE_SIZE) {
+					log.info("Corrupt Entry: {}, Size:{}", index, exc.capacity());
 					continue;
-					
 				}
-				exc.readLong();					
-				int s_size = exc.readInt();
-				int b_size = exc.readInt();
-				if(s_size>0) {					
-						
-					if (s_size < 0 || 0 < 0 || 0 + s_size > xfer.length)
-			            throw new IllegalArgumentException("OUCH. Failed to read string of size: " + s_size);
-					exc.read(xfer, 0, s_size);			
-					String metricName = new String(xfer, 0, s_size, CHARSET);
-					nameCache.put(metricName, key);
+				if(metricCursor==null) {
+					metricCursor = new UnsafeMetricDefinition(exc);
+				} else {
+					metricCursor.readMarshallable(exc);
+				}
+				final long globalId = metricCursor.getId();
+				idCache.put(globalId, exc.index());
+				loadCount++;
+				
+				final String name = metricCursor.getName();
+				final byte[] opaqueKey = metricCursor.getNameBytes();
+				
+				if(name!=null) {
+					nameCache.put(name, globalId);
 					nameCacheEntries++;
 				}
-				if(b_size>0) {
-					byte[] bytes = new byte[b_size];
-					exc.read(bytes);
-					opaqueCache.put(bytes, key);
-					bytes = null;
+				if(opaqueKey!=null) {
+					opaqueCache.put(opaqueKey, globalId);
 					opaqueCacheEntries++;
-				}				
-				loadCount++;
+				}
 			}
 			System.gc();
 			log.info(StringHelper.banner("Loaded %s Cache Records\n\tName Cache: %s\n\tOpaque Cache: %s" , loadCount, nameCacheEntries, opaqueCacheEntries));

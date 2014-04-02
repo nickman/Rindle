@@ -25,6 +25,7 @@
 package org.helios.pag.store;
 
 import java.nio.charset.Charset;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.helios.pag.util.SystemClock;
@@ -33,6 +34,7 @@ import org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock;
 
 import com.higherfrequencytrading.chronicle.Chronicle;
 import com.higherfrequencytrading.chronicle.Excerpt;
+import com.higherfrequencytrading.chronicle.impl.IndexedChronicle;
 
 /**
  * <p>Title: ChronicleCacheWriter</p>
@@ -76,12 +78,34 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 	 * @param nameCache The metric name cache the writer will keep synchronized
 	 * @param opaqueKeyCache The metric opaque key cache the writer will keep synchronized
 	 */
-	ChronicleCacheWriter(Chronicle chronicle, SpinLock spinLock, IStringKeyCache nameCache, IByteArrayKeyCache opaqueKeyCache) {
+	ChronicleCacheWriter(IndexedChronicle chronicle, SpinLock spinLock, IStringKeyCache nameCache, IByteArrayKeyCache opaqueKeyCache) {
 		this.spinLock = spinLock;
 		this.chronicle = chronicle;
 		this.nameCache = nameCache;
 		this.opaqueCache = opaqueKeyCache;
-		this.writer = chronicle.createExcerpt();
+		if(chronicle.useUnsafe()) {
+			this.writer = new DirectUnsafeExcerpt(chronicle);
+		} else {
+			this.writer = new MemCopyByteBufferExcerpt(chronicle);
+		}
+	}
+	
+	/**
+	 * Executes a write task within a spin lock acquire/release
+	 * @param task The task to execute
+	 * @return the return value of the task
+	 */
+	public <T> T executeWriteTask(WriteTask<T> task) {
+		spinLock.xlock();
+		try {
+			try {
+				return task.call(writer);
+			} catch (Exception ex) {
+				throw new RuntimeException("Write task failed", ex);
+			}
+		} finally {
+			spinLock.xunlock();
+		}
 	}
 	
 	/**

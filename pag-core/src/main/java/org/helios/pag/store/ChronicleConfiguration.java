@@ -59,6 +59,12 @@ public class ChronicleConfiguration {
 	public final File dataDir;
 	/** The unsafe option for chronicles */
 	public final boolean unsafe;
+	
+	/** The initial capacity of the global ID cache fronting the chronicle cache */
+	public final int idCacheInitialCapacity;
+	/** The load factory of the global ID cache fronting the chronicle cache */
+	public final float idCacheLoadFactor;
+	
 	/** The initial capacity of the name cache fronting the chronicle cache */
 	public final int nameCacheInitialCapacity;
 	/** The load factory of the name cache fronting the chronicle cache */
@@ -78,8 +84,12 @@ public class ChronicleConfiguration {
 	 * Creates a new ChronicleConfiguration
 	 */
 	public ChronicleConfiguration() {		 
+		idCacheInitialCapacity = ConfigurationHelper.getIntSystemThenEnvProperty(Constants.CHRONICLE_ID_CACHE_INITIAL_CAPACITY, Constants.DEFAULT_CHRONICLE_ID_CACHE_INITIAL_CAPACITY);
+		idCacheLoadFactor = ConfigurationHelper.getFloatSystemThenEnvProperty(Constants.CHRONICLE_ID_CACHE_LOAD_FACTOR, Constants.DEFAULT_CHRONICLE_ID_CACHE_LOAD_FACTOR);
+
 		nameCacheInitialCapacity = ConfigurationHelper.getIntSystemThenEnvProperty(Constants.CHRONICLE_NAME_CACHE_INITIAL_CAPACITY, Constants.DEFAULT_CHRONICLE_NAME_CACHE_INITIAL_CAPACITY);
 		nameCacheLoadFactor = ConfigurationHelper.getFloatSystemThenEnvProperty(Constants.CHRONICLE_NAME_CACHE_LOAD_FACTOR, Constants.DEFAULT_CHRONICLE_NAME_CACHE_LOAD_FACTOR);
+		
 		opaqueCacheInitialCapacity = ConfigurationHelper.getIntSystemThenEnvProperty(Constants.CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY, Constants.DEFAULT_CHRONICLE_OPAQUE_CACHE_INITIAL_CAPACITY);
 		opaqueCacheLoadFactor = ConfigurationHelper.getFloatSystemThenEnvProperty(Constants.CHRONICLE_OPAQUE_CACHE_LOAD_FACTOR, Constants.DEFAULT_CHRONICLE_OPAQUE_CACHE_LOAD_FACTOR);
 		dataBitSizeHint = UnsafeAdapter.findNextPositivePowerOfTwo(ConfigurationHelper.getIntSystemThenEnvProperty(Constants.CHRONICLE_DATASIZE_PROP, Constants.DEFAULT_CHRONICLE_DATASIZE));

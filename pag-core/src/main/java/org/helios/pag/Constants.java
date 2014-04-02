@@ -117,6 +117,16 @@ public class Constants {
 	public static final String CHRONICLE_DATASIZE_PROP = "helios.pag.store.chronicle.datasize";
     /** The default indexed chronicle dataBitSizeHint */
     public static final int DEFAULT_CHRONICLE_DATASIZE = 16;
+
+    
+	/** The config property name to specify the chronicle metric global ID pre-cache initial capacity */
+	public static final String CHRONICLE_ID_CACHE_INITIAL_CAPACITY = "helios.pag.store.chronicle.idcache.initialcap";
+    /** The default chronicle metric global ID pre-cache initial capacity */
+    public static final int DEFAULT_CHRONICLE_ID_CACHE_INITIAL_CAPACITY = 1024;
+	/** The config property name to specify the chronicle metric global ID pre-cache load factor */
+	public static final String CHRONICLE_ID_CACHE_LOAD_FACTOR = "helios.pag.store.chronicle.idcache.loadfactor";
+    /** The default chronicle metric global ID pre-cache initial capacity */
+    public static final float DEFAULT_CHRONICLE_ID_CACHE_LOAD_FACTOR = 0.75f;
     
 	
 	/** The config property name to specify the chronicle metric name pre-cache initial capacity */
