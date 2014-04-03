@@ -48,7 +48,7 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 	/** The chronicle this writer is for */
 	protected final Chronicle chronicle;
 	/** The guarded writing excerpt */
-	protected final Excerpt writer;
+	protected final MemCopyExcerpt writer;
 	/** The write guarding spin lock */
 	protected final SpinLock spinLock;
 	

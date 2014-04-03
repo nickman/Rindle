@@ -26,6 +26,7 @@ package org.helios.pag.store;
 
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 
+import com.higherfrequencytrading.chronicle.Excerpt;
 import com.higherfrequencytrading.chronicle.impl.DirectChronicle;
 import com.higherfrequencytrading.chronicle.impl.UnsafeExcerpt;
 
@@ -50,12 +51,34 @@ public class DirectUnsafeExcerpt extends UnsafeExcerpt implements MemCopyExcerpt
 	
 	/**
 	 * {@inheritDoc}
+	 * @see org.helios.pag.store.MemCopyExcerpt#writeExcerpt(org.helios.pag.store.MemCopyExcerpt)
+	 */
+	@Override
+	public void writeExcerpt(MemCopyExcerpt excerpt) {
+		if(excerpt==null) return;
+		if(excerpt instanceof DirectUnsafeExcerpt) {
+			DirectUnsafeExcerpt ex = (DirectUnsafeExcerpt)excerpt;
+			UnsafeAdapter.copyMemory(null, ex.start, null, start, ex.size());
+			position = start + ex.size();
+		} else {
+			excerpt.position(0);
+			byte[] xfer = new byte[(int)excerpt.size()];
+			excerpt.read(xfer);
+			position(0);
+			excerpt.write(xfer);
+			excerpt.finish();
+		}
+	}
+	
+	
+	/**
+	 * {@inheritDoc}
 	 * @see org.helios.pag.store.MemCopyExcerpt#writeMemory(java.lang.Object, long, long, long)
 	 */
 	@Override
 	public void writeMemory(Object sourceBase, long sourceOffset, long targetOffset, long bytes) {
 		UnsafeAdapter.copyMemory(sourceBase, sourceOffset, null, start + targetOffset, bytes);
-		position((int)bytes + (int)targetOffset);
+		position = start + targetOffset + bytes;
 	}
 	
 	/**
@@ -65,7 +88,7 @@ public class DirectUnsafeExcerpt extends UnsafeExcerpt implements MemCopyExcerpt
 	@Override
 	public void writeMemory(long sourceAddress, long targetOffset, long bytes) {
 		UnsafeAdapter.copyMemory(null, sourceAddress, null, start + targetOffset, bytes);
-		position((int)bytes + (int)targetOffset);
+		position = start + targetOffset + bytes;
 	}
 	
 	

@@ -165,17 +165,20 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe, 
 	 */
 	@Override
 	public void writeMarshallable(Excerpt out) {
+		final int size = getByteSize();
 		if(getId()==NO_ENTRY_VALUE) {
-			out.startExcerpt(getByteSize());
+			out.startExcerpt(size);
 			setId(ChronicleCache.getInstance().newMetric(out.index()));
 		}
 		out.position(0);
 		if(out instanceof MemCopyExcerpt) {		
 			MemCopyExcerpt me = (MemCopyExcerpt)out;
-			me.writeMemory(address[0], 0, getByteSize());
+			me.writeMemory(address[0], 0, size);
+			me.position(size);
+			me.finish();
 		} else {
 			out.writeByte(DELETE_FLAG);
-			out.writeInt(getByteSize());
+			out.writeInt(size);
 			out.writeLong(getId());
 			out.writeLong(getCreatedTimestamp());
 			int _nameSize = getNameSize();

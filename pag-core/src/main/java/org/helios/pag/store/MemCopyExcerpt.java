@@ -73,5 +73,11 @@ public interface MemCopyExcerpt extends Excerpt {
 	 */
 	public abstract void readMemory(long targetAddress, long sourceOffset,
 			long bytes);
+	
+	/**
+	 * Copies the contents of the chronicle entry pointed to by the passed excerpt into this excerpt
+	 * @param excerpt the excerpt to copy from
+	 */
+	public abstract void writeExcerpt(MemCopyExcerpt excerpt);
 
 }

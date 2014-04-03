@@ -150,6 +150,31 @@ public class ChronicleCache {
 	}
 	
 	/**
+	 * Cleans the caches of values for the passed deleted metric.
+	 * @param deletedMetric the deleted metric
+	 */
+	public void processDeleteCacheClean(IMetricDefinition deletedMetric) {
+		if(deletedMetric!=null) {
+			idCache.remove(deletedMetric.getId());
+			String name = deletedMetric.getName();
+			byte[] opaqueKey = deletedMetric.getOpaqueKey();
+			if(name!=null) nameCache.remove(name);
+			if(opaqueKey!=null) opaqueCache.remove(opaqueKey);
+		}
+	}
+	
+	/**
+	 * Adds the passed global id to the name and opaque caches if the keys are not null
+	 * @param gid The global id
+	 * @param name The metric name
+	 * @param opaqueKey The metric opaque key
+	 */
+	public void addNewMetricToCache(long gid, String name, byte[] opaqueKey) {
+		if(name!=null) nameCache.put(name, gid);
+		if(opaqueKey!=null) opaqueCache.put(opaqueKey, gid);
+	}
+	
+	/**
 	 * Returns the chronicle index for the passed global ID
 	 * @param globalId The metric global ID
 	 * @return the chronicle index the metric resides at or the no_value token
@@ -171,11 +196,12 @@ public class ChronicleCache {
 	/**
 	 * Defragments the main chronicle cache
 	 */
+	@SuppressWarnings("resource")
 	synchronized void defragChronicle() {
 		log.info("Defrag Starting....");
 		ChronicleCache defrag = null;
 		
-		//readOnlySpinLock
+
 		Excerpt defragEx = null;
 		try {
 			readOnlyCache = clone();
@@ -186,11 +212,11 @@ public class ChronicleCache {
 			final long preSize = indexedChronicle.size();
 			long defragCount = 0, deletedCount = 0, retainedCount = 0;
 			writer.spinLock.xlock(true);
-			final byte[] xfer = new byte[Integer.MAX_VALUE/10000];
-			Excerpt from = writer.writer;
-			Excerpt to = defrag.newExcerpt();
+			MemCopyExcerpt from = writer.writer;
+			MemCopyExcerpt to = defrag.newExcerpt();
 			defragEx = to;
 			from.toStart();
+			UnsafeMetricDefinition metricCursor = null;
 			while(from.hasNextIndex()) {
 				if(!from.nextIndex()) break;
 				defragCount++;
@@ -199,47 +225,53 @@ public class ChronicleCache {
 					deletedCount++;
 					continue;
 				}
-				int size = from.available();
-				if(size<1) continue;
-				to.startExcerpt(size);	
-				from.read(xfer, 0, size);
-//				log.info("Writing to defrag: [{}]", bb);
-//				if(bb.position()<1) {
-//					log.warn("[Phase 1] Excerpt record #{} said size was {} but transfer buffer reported {}", from.index(), size, bb.position());
-//					deletedCount++;
-//					bb.clear();
-//					bb.flip();
-//					continue;
-//				}
-				to.write(xfer, 0, size);
-				to.finish();
+				final long index = from.index();
+				if(index==-1) continue;
+				if(from.capacity() < IMetricDefinition.BASE_SIZE) {
+					log.info("Corrupt Entry: {}, Size:{}", index, from.capacity());
+					deletedCount++;
+					continue;
+				}
+				if(metricCursor==null) {
+					metricCursor = new UnsafeMetricDefinition(from);
+				} else {
+					metricCursor.readMarshallable(from);
+				}
+				final long globalId = metricCursor.getId();
+				to.startExcerpt(metricCursor.getByteSize());
+				to.writeExcerpt(from);
 				retainedCount++;
 			}
-			System.gc();
-			log.info("Defrag Phase 1 Complete in {} ms. Read {} Records. Deleted: {}, Retained: {}", et.elapsedMs(), defragCount, deletedCount, retainedCount);
+			log.info("Defrag Phase 1 Complete in {} ms. Read {} Records. Deleted: {}, Retained: {}", 
+					et.elapsedMs(), defragCount, deletedCount, retainedCount);
 			purge();
-			Excerpt tmp = from;
+			MemCopyExcerpt tmp = from;
 			from = to;
 			to = tmp;
 			from.toStart();
+			to.toStart();
 			while(from.hasNextIndex()) {
 				if(!from.nextIndex()) break;
 				from.position(0);
-				int size = from.available();
-				if(size<1) continue;
-				to.startExcerpt(size);
-				from.read(xfer, 0, size);
-//				if(bb.position()<1) {
-//					log.warn("[Phase 2] Excerpt record #{} said size was {} but transfer buffer reported {}", from.index(), size, bb.position());
-//					deletedCount++;
-//					bb.clear();
-//					bb.flip();
-//					continue;
-//				}
-//				log.info("Writing to main: [{}]", bb);
-				to.write(xfer, 0, size);
-				to.finish();
+				final long index = from.index();
+				if(index==-1) continue;
+				if(metricCursor==null) {
+					metricCursor = new UnsafeMetricDefinition(from);
+				} else {
+					metricCursor.readMarshallable(from);
+				}
+				final long globalId = metricCursor.getId();
+				to.startExcerpt(metricCursor.getByteSize());
+				to.writeExcerpt(from);				
 			}
+			long postSize = indexedChronicle.size();
+			log.info("Defrag Phase 2 Complete in {} ms. Defragged from {} records to {} records", 
+					et.elapsedMs(), preSize, postSize);
+			clearCache();
+			load();
+			log.info("Defrag Phase 3 Complete in {} ms.\n\tID Cache: {}\n\tName Cache: {}\n\tOpaque Cache: {}", 
+					et.elapsedMs(), idCache.size(), nameCache.size(), opaqueCache.size());
+			//  === CLEANUP ===
 			if(defragEx != null) try { defragEx.close(); } catch (Exception x) { /* No Op */}
 			defragEx = null;
 			if(defrag != null) try { defrag.indexedChronicle.clear(); } catch (Exception x) { /* No Op */} 
@@ -247,11 +279,6 @@ public class ChronicleCache {
 			defrag = null;
 			
 			System.gc();
-			final long postSize = indexedChronicle.size();
-			log.info("Defrag Phase 2 Complete in {} ms. Defragged from {} records to {} records", et.elapsedMs(), preSize, postSize);
-			clearCache();
-			load();
-			log.info("Defrag Phase 3 Complete in {} ms. Name Cache: {}, Opaque Cache: {}", et.elapsedMs(), nameCache.size(), opaqueCache.size());
 		} finally {
 			readOnlySpinLock.xunlock();
 			writer.spinLock.xunlock();
@@ -278,30 +305,37 @@ public class ChronicleCache {
 	public static void main(String[] args) {
 		ChronicleCache cc = null;
 		int insertLoops = 10;
+		UnsafeMetricDefinitionMarshaller marshaller = UnsafeMetricDefinitionMarshaller.INSTANCE; 
+		
 		try {
 			cc = ChronicleCache.getInstance();
 			cc.purge();
 			if(cc.indexedChronicle.size()<1) {
 				for(int i = 0; i < insertLoops; i++) {
 					for(String uuid: TestKeyedCaches.uuidSamples.values()) {
-						cc.writer.newMetricEntry(uuid);
-						cc.writer.newMetricEntry(uuid.getBytes());
+						marshaller.createOrUpdate(uuid);
+						marshaller.createOrUpdate(uuid.getBytes());
 					}
 				}
 			}
+			cc.log.info("ID Cache Size: {}", cc.idCache.size());
 			cc.log.info("Name Cache Size: {}", cc.nameCache.size());
 			cc.log.info("Opaque Cache Size: {}", cc.opaqueCache.size());
 			cc.log.info("Chronicle Cache Size: {}", cc.indexedChronicle.size());
 			
+			cc.log.info("================== Initial Inserts Complete =================="); 
+			
 			for(String uuid: TestKeyedCaches.uuidSamples.values()) {
-				cc.writer.newMetricEntry(uuid, uuid.getBytes());
+				marshaller.createOrUpdate(uuid, uuid.getBytes());
 			}
 			
+			cc.log.info("ID Cache Size: {}", cc.idCache.size());
 			cc.log.info("Name Cache Size: {}", cc.nameCache.size());
 			cc.log.info("Opaque Cache Size: {}", cc.opaqueCache.size());
 			cc.log.info("Chronicle Cache Size: {}", cc.indexedChronicle.size());
 			cc.log.info("Chronicle Deleted Entries: {}", cc.writer.deletedEntries);
 			
+			cc.log.info("================== Combined Inserts Complete ==================");
 			
 			cc.defragChronicle();
 			
@@ -423,7 +457,7 @@ public class ChronicleCache {
 	 * Creates a new excerpt for this chronicle 
 	 * @return the created excerpt
 	 */
-	Excerpt newExcerpt() {
+	MemCopyExcerpt newExcerpt() {
 		if(indexedChronicle.useUnsafe()) {
 			return new DirectUnsafeExcerpt(indexedChronicle);
 		}
@@ -438,8 +472,7 @@ public class ChronicleCache {
 		long loadCount = 0, nameCacheEntries = 0, opaqueCacheEntries = 0;
 		UnsafeMetricDefinition metricCursor = null;
 		try {
-			exc = indexedChronicle.createExcerpt();
-			byte[] xfer = new byte[Integer.MAX_VALUE/10000];
+			exc = indexedChronicle.createExcerpt();			
 			while(exc.hasNextIndex()) {
 				if(!exc.nextIndex()) break;
 				exc.position(0);

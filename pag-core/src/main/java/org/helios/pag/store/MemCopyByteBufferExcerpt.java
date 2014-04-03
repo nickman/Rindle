@@ -41,11 +41,27 @@ public class MemCopyByteBufferExcerpt extends ByteBufferExcerpt implements MemCo
 
 	/**
 	 * Creates a new MemCopyByteBufferExcerpt
-	 * @param chronicle
+	 * @param chronicle The chronicle this excerpt interacts with
 	 */
 	public MemCopyByteBufferExcerpt(DirectChronicle chronicle) {
 		super(chronicle);
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.MemCopyExcerpt#writeExcerpt(org.helios.pag.store.MemCopyExcerpt)
+	 */
+	@Override
+	public void writeExcerpt(MemCopyExcerpt excerpt) {
+		if(excerpt==null) return;
+		excerpt.position(0);
+		byte[] xfer = new byte[(int)excerpt.size()];
+		excerpt.read(xfer);
+		position(0);
+		excerpt.write(xfer);
+		excerpt.finish();
+	}
+	
 
 	/**
 	 * {@inheritDoc}
