@@ -48,7 +48,7 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 	/** The chronicle this writer is for */
 	protected final Chronicle chronicle;
 	/** The guarded writing excerpt */
-	protected final MemCopyExcerpt writer;
+	protected final Excerpt writer;
 	/** The write guarding spin lock */
 	protected final SpinLock spinLock;
 	
@@ -83,11 +83,7 @@ public class ChronicleCacheWriter implements IChronicleCacheEntry {
 		this.chronicle = chronicle;
 		this.nameCache = nameCache;
 		this.opaqueCache = opaqueKeyCache;
-		if(chronicle.useUnsafe()) {
-			this.writer = new DirectUnsafeExcerpt(chronicle);
-		} else {
-			this.writer = new MemCopyByteBufferExcerpt(chronicle);
-		}
+		this.writer = chronicle.createExcerpt();
 	}
 	
 	/**

@@ -25,9 +25,9 @@
 package org.helios.pag.store;
 
 import java.io.File;
-import java.io.IOException;
 
-import com.higherfrequencytrading.chronicle.tools.ChronicleReader;
+import com.higherfrequencytrading.chronicle.Excerpt;
+import com.higherfrequencytrading.chronicle.impl.IndexedChronicle;
 
 /**
  * <p>Title: DumpStore</p>
@@ -50,12 +50,31 @@ public class DumpStore {
 	 * @param args
 	 */
 	public static void main(String[] args) {
+		Excerpt ex = null;
+		IndexedChronicle ic = null;
+		ChronicleConfiguration config = new ChronicleConfiguration(); 
 		try {
-			ChronicleReader.main(new ChronicleConfiguration().dataDir.getAbsolutePath() + File.separator + "MetricCache");
+			ic = new IndexedChronicle(config.dataDir.getAbsolutePath() + File.separator + ChronicleCache.CACHE_NAME);
+			ex = ic.createExcerpt();
+			UnsafeMetricDefinitionMarshaller marshaller = UnsafeMetricDefinitionMarshaller.INSTANCE;
+			ex.toStart();
+			while(ex.hasNextIndex()) {
+				ex.nextIndex();
+				long index = ex.index();
+				if(ex.readByte(0)==1) {
+					System.out.println(index + ":-> Deleted: " + ex.size() + " bytes");
+					continue;
+				}
+				UnsafeMetricDefinition umd = marshaller.read(ex);
+//				System.out.println(index + ":-> " + umd);
+			}
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace(System.err);
+		} finally {
+			if(ex!=null) ex.close();
+			if(ic!=null) ic.close();
 		}
+		
 	}
 
 }

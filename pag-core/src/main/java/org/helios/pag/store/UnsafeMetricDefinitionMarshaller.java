@@ -199,7 +199,7 @@ public class UnsafeMetricDefinitionMarshaller implements EnumeratedMarshaller<Un
 						UnsafeMetricDefinition umd = read(ex);						
 						cache.processDeleteCacheClean(umd);
 						ex.position(0);
-						ex.writeByte(IMetricDefinition.DELETE_FLAG);
+						ex.writeByte(1);
 						ex.finish();
 						dCount++;
 					} catch (Exception e) {
