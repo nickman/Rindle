@@ -39,6 +39,7 @@
 		<log4j.version>2.0-rc1</log4j.version>
 		<colt.version>1.2.0</colt.version>
 		<math.version>3.1.1</math.version>
+		<jedis.version>2.4.2</jedis.version>
 		<!-- Plugin Versions -->
 		<jar-plugin.version>2.3</jar-plugin.version>
 		<source-plugin.version>2.2</source-plugin.version>
@@ -92,6 +93,19 @@
 	  <artifactId>netty</artifactId>
 	  <version>${netty.version}</version>
 	</dependency>		
+
+      <!--
+	========================================
+	Jedis Artifacts
+	========================================
+	-->
+
+	<dependency>
+	  <groupId>redis.clients</groupId>
+	  <artifactId>jedis</artifactId>
+	  <version>${jedis.version}</version>
+	</dependency>
+
 		
       <!--
 	========================================

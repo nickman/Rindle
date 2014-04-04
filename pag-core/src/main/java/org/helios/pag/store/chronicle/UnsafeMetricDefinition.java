@@ -22,10 +22,11 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
+package org.helios.pag.store.chronicle;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.helios.pag.metric.IMetricDefinition;
 import org.helios.pag.util.unsafe.DeAllocateMe;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 
@@ -296,7 +297,7 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe, 
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IMetricDefinition#getId()
+	 * @see org.helios.pag.metric.IMetricDefinition#getId()
 	 */
 	@Override
 	public long getId() {
@@ -306,7 +307,7 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe, 
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IMetricDefinition#getCreatedTimestamp()
+	 * @see org.helios.pag.metric.IMetricDefinition#getCreatedTimestamp()
 	 */
 	@Override
 	public long getCreatedTimestamp() {		
@@ -316,7 +317,7 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe, 
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IMetricDefinition#getName()
+	 * @see org.helios.pag.metric.IMetricDefinition#getName()
 	 */
 	@Override
 	public String getName() {
@@ -341,7 +342,7 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe, 
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IMetricDefinition#getOpaqueKey()
+	 * @see org.helios.pag.metric.IMetricDefinition#getOpaqueKey()
 	 */
 	@Override
 	public byte[] getOpaqueKey() {

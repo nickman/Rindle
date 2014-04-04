@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
+package org.helios.pag.store.chronicle;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.helios.pag.metric.IMetricDefinition;
 import org.helios.pag.util.StringHelper;
 import org.helios.pag.util.SystemClock;
 import org.helios.pag.util.SystemClock.ElapsedTime;

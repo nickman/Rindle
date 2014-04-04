@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
+package org.helios.pag.store.chronicle;
 
 import gnu.trove.map.hash.TLongLongHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
@@ -88,7 +88,7 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#size()
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#size()
 	 */
 	@Override
 	public int size() {
@@ -102,7 +102,7 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#containsKey(java.lang.CharSequence)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#containsKey(java.lang.CharSequence)
 	 */
 	@Override
 	public boolean containsKey(CharSequence key) {
@@ -118,7 +118,7 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#clear()
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#clear()
 	 */
 	@Override
 	public void clear() {
@@ -132,7 +132,7 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IKeyCache#purge()
+	 * @see org.helios.pag.store.chronicle.IKeyCache#purge()
 	 */
 	@Override
 	public void purge() {
@@ -148,7 +148,7 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#get(java.lang.CharSequence)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#get(java.lang.CharSequence)
 	 */
 	@Override
 	public long get(CharSequence key) {
@@ -164,7 +164,7 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#put(java.lang.CharSequence, long)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#put(java.lang.CharSequence, long)
 	 */
 	@Override
 	public long put(CharSequence key, long value) {
@@ -189,7 +189,7 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#putIfAbsent(java.lang.CharSequence, long)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#putIfAbsent(java.lang.CharSequence, long)
 	 */
 	@Override
 	public long putIfAbsent(CharSequence key, long value) {
@@ -204,7 +204,7 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#remove(java.lang.CharSequence)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#remove(java.lang.CharSequence)
 	 */
 	@Override
 	public long remove(CharSequence key) {
@@ -220,7 +220,7 @@ public class CharBufferStringKeyCache implements IStringKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#putAll(java.util.Map)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#putAll(java.util.Map)
 	 */
 	@Override
 	public void putAll(Map<? extends CharSequence, ? extends Long> map) {

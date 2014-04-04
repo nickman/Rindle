@@ -22,71 +22,61 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
+package org.helios.pag.store.chronicle;
 
-import gnu.trove.map.hash.TObjectLongHashMap;
+import gnu.trove.map.hash.TLongLongHashMap;
 
-import java.nio.ByteBuffer;
 import java.util.Map;
 
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 import org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock;
 
 /**
- * <p>Title: ByteBufferKeyChronicleCache</p>
- * <p>Description: A {@link IByteArrayKeyCache} implemented using {@link ByteBuffer}s as keys</p> 
+ * <p>Title: StringKeyChronicleCache</p>
+ * <p>Description: A cache of chronicle keys (<b><code>long</code></b>s) keyed by the global ID</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.ByteBufferKeyChronicleCache</code></p>
+ * <p><code>org.helios.pag.store.LongKeyChronicleCache</code></p>
  */
 
-public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
+public class LongKeyChronicleCache  implements ILongKeyCache {
 	
 	/** The spin lock */
 	protected final SpinLock lock = UnsafeAdapter.allocateSpinLock();
 
-	/** The cache of Chronicle entry ids keyed by a byte buffer wrapped byte array */
-	private final TObjectLongHashMap<ByteBuffer> cache;
-	
-	private final boolean offHeap;
+	/** The cache of Chronicle entry ids keyed by the long hash code of the name */
+	private final TLongLongHashMap cache;
 	
 	/**
-	 * Creates a new ByteBufferKeyChronicleCache
+	 * Creates a new LongKeyChronicleCache
      * @param initialCapacity used to find a prime capacity for the table.
      * @param loadFactor used to calculate the threshold over which rehashing takes place.
-     * @param offHeap If true, buffer is placed off-heap, on-heap otherwise
 	 */
-	public ByteBufferKeyChronicleCache(int initialCapacity, float loadFactor, boolean offHeap) {
-		cache = new TObjectLongHashMap<ByteBuffer>(initialCapacity, loadFactor, NO_ENTRY_VALUE);
-		this.offHeap = offHeap;
+	public LongKeyChronicleCache(int initialCapacity, float loadFactor) {
+		cache = new TLongLongHashMap(initialCapacity, loadFactor, NO_ENTRY_VALUE, NO_ENTRY_VALUE);
 	}
 	
 	/**
-	 * Creates a new on-heap ByteBufferKeyChronicleCache with the default load factor
+	 * LongKeyChronicleCache Copy Ctor
+	 * @param otherCache the cache to copy
+	 */
+	public LongKeyChronicleCache(LongKeyChronicleCache otherCache) {
+		cache = new TLongLongHashMap(otherCache.cache);
+	}
+	
+	/**
+	 * Creates a new LongKeyChronicleCache with the default load factor
      * @param initialCapacity used to find a prime capacity for the table.
 	 */
-	public ByteBufferKeyChronicleCache(int initialCapacity) {
-		this(initialCapacity, DEFAULT_LOAD_FACTOR, false);
+	public LongKeyChronicleCache(int initialCapacity) {
+		this(initialCapacity, DEFAULT_LOAD_FACTOR);
 	}
 	
-	/**
-	 * Wraps the passed key in a ByteBuffer
-	 * @param key The key to wrap
-	 * @return The ByteBuffer wrapped key
-	 */
-	protected ByteBuffer wrap(byte[] key) {
-		ByteBuffer bb = null;
-		if(!offHeap) {
-			bb = ((ByteBuffer) ByteBuffer.allocate(key.length).put(key).flip()).asReadOnlyBuffer();
-		} else {
-			bb = ((ByteBuffer) ByteBuffer.allocateDirect(key.length).put(key).flip()).asReadOnlyBuffer();
-		}
-		return bb;
-	}
+	
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#size()
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#size()
 	 */
 	@Override
 	public int size() {
@@ -98,17 +88,17 @@ public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
 		}
 	}
 
+
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IByteArrayKeyCache#containsKey(byte[])
+	 * @see org.helios.pag.store.chronicle.ILongKeyCache#containsKey(long)
 	 */
 	@Override
-	public boolean containsKey(byte[] key) {
-		if(key==null) return false;
+	public boolean containsKey(long key) {
 		try {			
 			lock.xlock();
 			if(cache.isEmpty()) return false;			
-			return cache.containsKey(wrap(key));
+			return cache.containsKey(key);
 		} finally {
 			lock.xunlock();
 		}
@@ -116,7 +106,7 @@ public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#clear()
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#clear()
 	 */
 	@Override
 	public void clear() {
@@ -130,7 +120,7 @@ public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IKeyCache#purge()
+	 * @see org.helios.pag.store.chronicle.IKeyCache#purge()
 	 */
 	@Override
 	public void purge() {
@@ -141,20 +131,19 @@ public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
 		} finally {
 			lock.xunlock();
 		}		
-	}
+	}	
 	
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IByteArrayKeyCache#get(byte[])
+	 * @see org.helios.pag.store.chronicle.ILongKeyCache#get(long)
 	 */
 	@Override
-	public long get(byte[] key) {
-		if(key==null) return NO_ENTRY_VALUE;
+	public long get(long key) {
 		try {
 			lock.xlock();
 			if(cache.isEmpty()) return NO_ENTRY_VALUE;
-			return cache.get(wrap(key));
+			return cache.get(key);
 		} finally {
 			lock.xunlock();
 		}
@@ -162,14 +151,13 @@ public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IByteArrayKeyCache#put(byte[], long)
+	 * @see org.helios.pag.store.chronicle.ILongKeyCache#put(long, long)
 	 */
 	@Override
-	public long put(byte[] key, long value) {
-		if(key==null) throw new IllegalArgumentException("The passed key was null");		
+	public long put(long key, long value) {	
 		try {
 			lock.xlock();			
-			return cache.put(wrap(key), value);
+			return cache.put(key, value);
 		} finally {
 			lock.xunlock();
 		}
@@ -181,20 +169,19 @@ public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
 	 * @param value The long value
 	 * @return the previous value associated with they key or {@link #NO_ENTRY_VALUE} if there was no mapping for the key.
 	 */
-	protected long _put(byte[] key, long value) {
-		return cache.put(wrap(key), value);
+	protected long _put(long key, long value) {
+		return cache.put(key, value);
 	}
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IByteArrayKeyCache#putIfAbsent(byte[], long)
+	 * @see org.helios.pag.store.chronicle.ILongKeyCache#putIfAbsent(long, long)
 	 */
 	@Override
-	public long putIfAbsent(byte[] key, long value) {
-		if(key==null) throw new IllegalArgumentException("The passed key was null");
+	public long putIfAbsent(long key, long value) {
 		try {
 			lock.xlock();			
-			return cache.putIfAbsent(wrap(key), value);
+			return cache.putIfAbsent(key, value);
 		} finally {
 			lock.xunlock();
 		}
@@ -202,14 +189,13 @@ public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IByteArrayKeyCache#remove(byte[])
+	 * @see org.helios.pag.store.chronicle.ILongKeyCache#remove(long)
 	 */
 	@Override
-	public long remove(byte[] key) {
-		if(key==null) throw new IllegalArgumentException("The passed key was null");
+	public long remove(long key) {
 		try {			
 			lock.xlock();			
-			return cache.remove(wrap(key));
+			return cache.remove(key);
 		} finally {
 			lock.xunlock();
 		}
@@ -218,16 +204,17 @@ public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IByteArrayKeyCache#putAll(java.util.Map)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#putAll(java.util.Map)
 	 */
 	@Override
-	public void putAll(Map<byte[], Long> map) {
+	public void putAll(Map<Long, Long> map) {
 		if(map==null) throw new IllegalArgumentException("The passed map was null");
 		if(map.isEmpty()) return;
 		try {			
 			lock.xlock();
-			for(Map.Entry<byte[], Long> entry: map.entrySet()) {
-				_put(entry.getKey(), entry.getValue().longValue());
+			for(Map.Entry<Long, Long> entry: map.entrySet()) {
+				if(entry.getValue()==null) continue;
+				_put(entry.getKey().longValue(), entry.getValue().longValue());
 			}
 		} finally {
 			lock.xunlock();
@@ -236,16 +223,14 @@ public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
 
 	/**
 	 * Adjusts the primitive value mapped to the key if the key is present in the map.
-	 * @param key The stringy key
+	 * @param key The key
 	 * @param value The value
 	 * @return true if a mapping was found and modified.
-	 * @see gnu.trove.map.hash.TObjectLongHashMap#adjustValue(java.lang.Object, long)
 	 */
-	public boolean adjustValue(byte[] key, long value) {
-		if(key==null) throw new IllegalArgumentException("The passed key was null");		
+	public boolean adjustValue(long key, long value) {
 		try {						
 			lock.xlock();
-			return cache.adjustValue(wrap(key), value);
+			return cache.adjustValue(key, value);
 		} finally {
 			lock.xunlock();			
 		}
@@ -329,6 +314,5 @@ public class ByteBufferKeyChronicleCache implements IByteArrayKeyCache {
 			lock.xunlock();
 		}				
 	}
-
 
 }

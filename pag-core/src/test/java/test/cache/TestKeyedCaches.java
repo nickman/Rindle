@@ -35,12 +35,12 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import org.helios.pag.store.ByteArrayKeyChronicleCache;
-import org.helios.pag.store.ByteBufferKeyChronicleCache;
-import org.helios.pag.store.CharBufferStringKeyCache;
-import org.helios.pag.store.IByteArrayKeyCache;
-import org.helios.pag.store.IStringKeyCache;
-import org.helios.pag.store.StringKeyChronicleCache;
+import org.helios.pag.store.chronicle.ByteArrayKeyChronicleCache;
+import org.helios.pag.store.chronicle.ByteBufferKeyChronicleCache;
+import org.helios.pag.store.chronicle.CharBufferStringKeyCache;
+import org.helios.pag.store.chronicle.IByteArrayKeyCache;
+import org.helios.pag.store.chronicle.IStringKeyCache;
+import org.helios.pag.store.chronicle.StringKeyChronicleCache;
 import org.helios.pag.util.SystemClock;
 import org.helios.pag.util.SystemClock.ElapsedTime;
 import org.junit.Assert;

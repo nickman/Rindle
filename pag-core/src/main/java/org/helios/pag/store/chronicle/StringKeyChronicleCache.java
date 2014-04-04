@@ -22,24 +22,25 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
+package org.helios.pag.store.chronicle;
 
 import gnu.trove.map.hash.TLongLongHashMap;
 
 import java.util.Map;
 
+import org.helios.pag.util.StringHelper;
 import org.helios.pag.util.unsafe.UnsafeAdapter;
 import org.helios.pag.util.unsafe.UnsafeAdapter.SpinLock;
 
 /**
  * <p>Title: StringKeyChronicleCache</p>
- * <p>Description: A cache of chronicle keys (<b><code>long</code></b>s) keyed by the global ID</p> 
+ * <p>Description: A cache of chronicle keys (<b><code>long</code></b>s) keyed by a {@link String} pointer</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.LongKeyChronicleCache</code></p>
+ * <p><code>org.helios.pag.store.StringKeyChronicleCache</code></p>
  */
 
-public class LongKeyChronicleCache  implements ILongKeyCache {
+public class StringKeyChronicleCache  implements IStringKeyCache {
 	
 	/** The spin lock */
 	protected final SpinLock lock = UnsafeAdapter.allocateSpinLock();
@@ -48,27 +49,27 @@ public class LongKeyChronicleCache  implements ILongKeyCache {
 	private final TLongLongHashMap cache;
 	
 	/**
-	 * Creates a new LongKeyChronicleCache
+	 * Creates a new StringKeyChronicleCache
      * @param initialCapacity used to find a prime capacity for the table.
      * @param loadFactor used to calculate the threshold over which rehashing takes place.
 	 */
-	public LongKeyChronicleCache(int initialCapacity, float loadFactor) {
+	public StringKeyChronicleCache(int initialCapacity, float loadFactor) {
 		cache = new TLongLongHashMap(initialCapacity, loadFactor, NO_ENTRY_VALUE, NO_ENTRY_VALUE);
 	}
 	
 	/**
-	 * LongKeyChronicleCache Copy Ctor
+	 * StringKeyChronicleCache Copy Ctor
 	 * @param otherCache the cache to copy
 	 */
-	public LongKeyChronicleCache(LongKeyChronicleCache otherCache) {
+	public StringKeyChronicleCache(StringKeyChronicleCache otherCache) {
 		cache = new TLongLongHashMap(otherCache.cache);
 	}
 	
 	/**
-	 * Creates a new LongKeyChronicleCache with the default load factor
+	 * Creates a new StringKeyChronicleCache with the default load factor
      * @param initialCapacity used to find a prime capacity for the table.
 	 */
-	public LongKeyChronicleCache(int initialCapacity) {
+	public StringKeyChronicleCache(int initialCapacity) {
 		this(initialCapacity, DEFAULT_LOAD_FACTOR);
 	}
 	
@@ -76,7 +77,7 @@ public class LongKeyChronicleCache  implements ILongKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#size()
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#size()
 	 */
 	@Override
 	public int size() {
@@ -88,17 +89,17 @@ public class LongKeyChronicleCache  implements ILongKeyCache {
 		}
 	}
 
-
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.ILongKeyCache#containsKey(long)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#containsKey(java.lang.CharSequence)
 	 */
 	@Override
-	public boolean containsKey(long key) {
+	public boolean containsKey(CharSequence key) {
+		if(key==null) return false;
 		try {			
 			lock.xlock();
 			if(cache.isEmpty()) return false;			
-			return cache.containsKey(key);
+			return cache.containsKey(StringHelper.longHashCode(key.toString()));
 		} finally {
 			lock.xunlock();
 		}
@@ -106,7 +107,7 @@ public class LongKeyChronicleCache  implements ILongKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#clear()
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#clear()
 	 */
 	@Override
 	public void clear() {
@@ -120,7 +121,7 @@ public class LongKeyChronicleCache  implements ILongKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IKeyCache#purge()
+	 * @see org.helios.pag.store.chronicle.IKeyCache#purge()
 	 */
 	@Override
 	public void purge() {
@@ -136,14 +137,15 @@ public class LongKeyChronicleCache  implements ILongKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.ILongKeyCache#get(long)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#get(java.lang.CharSequence)
 	 */
 	@Override
-	public long get(long key) {
+	public long get(CharSequence key) {
+		if(key==null) return NO_ENTRY_VALUE;
 		try {
 			lock.xlock();
 			if(cache.isEmpty()) return NO_ENTRY_VALUE;
-			return cache.get(key);
+			return cache.get(StringHelper.longHashCode(key.toString()));
 		} finally {
 			lock.xunlock();
 		}
@@ -151,13 +153,14 @@ public class LongKeyChronicleCache  implements ILongKeyCache {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.ILongKeyCache#put(long, long)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#put(java.lang.CharSequence, long)
 	 */
 	@Override
-	public long put(long key, long value) {	
+	public long put(CharSequence key, long value) {
+		if(key==null) throw new IllegalArgumentException("The passed key was null");		
 		try {
 			lock.xlock();			
-			return cache.put(key, value);
+			return cache.put(StringHelper.longHashCode(key.toString()), value);
 		} finally {
 			lock.xunlock();
 		}
@@ -169,19 +172,20 @@ public class LongKeyChronicleCache  implements ILongKeyCache {
 	 * @param value The long value
 	 * @return the previous value associated with they key or {@link #NO_ENTRY_VALUE} if there was no mapping for the key.
 	 */
-	protected long _put(long key, long value) {
-		return cache.put(key, value);
+	protected long _put(CharSequence key, long value) {
+		return cache.put(StringHelper.longHashCode(key.toString()), value);
 	}
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.ILongKeyCache#putIfAbsent(long, long)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#putIfAbsent(java.lang.CharSequence, long)
 	 */
 	@Override
-	public long putIfAbsent(long key, long value) {
+	public long putIfAbsent(CharSequence key, long value) {
+		if(key==null) throw new IllegalArgumentException("The passed key was null");
 		try {
 			lock.xlock();			
-			return cache.putIfAbsent(key, value);
+			return cache.putIfAbsent(StringHelper.longHashCode(key.toString()), value);
 		} finally {
 			lock.xunlock();
 		}
@@ -189,13 +193,14 @@ public class LongKeyChronicleCache  implements ILongKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.ILongKeyCache#remove(long)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#remove(java.lang.CharSequence)
 	 */
 	@Override
-	public long remove(long key) {
+	public long remove(CharSequence key) {
+		if(key==null) throw new IllegalArgumentException("The passed key was null");
 		try {			
 			lock.xlock();			
-			return cache.remove(key);
+			return cache.remove(StringHelper.longHashCode(key.toString()));
 		} finally {
 			lock.xunlock();
 		}
@@ -204,17 +209,16 @@ public class LongKeyChronicleCache  implements ILongKeyCache {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.pag.store.IStringKeyCache#putAll(java.util.Map)
+	 * @see org.helios.pag.store.chronicle.IStringKeyCache#putAll(java.util.Map)
 	 */
 	@Override
-	public void putAll(Map<Long, Long> map) {
+	public void putAll(Map<? extends CharSequence, ? extends Long> map) {
 		if(map==null) throw new IllegalArgumentException("The passed map was null");
 		if(map.isEmpty()) return;
 		try {			
 			lock.xlock();
-			for(Map.Entry<Long, Long> entry: map.entrySet()) {
-				if(entry.getValue()==null) continue;
-				_put(entry.getKey().longValue(), entry.getValue().longValue());
+			for(Map.Entry<? extends CharSequence, ? extends Long> entry: map.entrySet()) {
+				_put(entry.getKey(), entry.getValue().longValue());
 			}
 		} finally {
 			lock.xunlock();
@@ -223,14 +227,16 @@ public class LongKeyChronicleCache  implements ILongKeyCache {
 
 	/**
 	 * Adjusts the primitive value mapped to the key if the key is present in the map.
-	 * @param key The key
+	 * @param key The stringy key
 	 * @param value The value
 	 * @return true if a mapping was found and modified.
+	 * @see gnu.trove.map.hash.TObjectLongHashMap#adjustValue(java.lang.Object, long)
 	 */
-	public boolean adjustValue(long key, long value) {
+	public boolean adjustValue(CharSequence key, long value) {
+		if(key==null) throw new IllegalArgumentException("The passed key was null");		
 		try {						
 			lock.xlock();
-			return cache.adjustValue(key, value);
+			return cache.adjustValue(StringHelper.longHashCode(key.toString()), value);
 		} finally {
 			lock.xunlock();			
 		}

@@ -22,47 +22,25 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
+package org.helios.pag.store.chronicle;
 
-import java.util.Map;
+import com.higherfrequencytrading.chronicle.Excerpt;
 
 /**
- * <p>Title: IKeyCache</p>
- * <p>Description: Common base interface for all key caches</p> 
+ * <p>Title: WriteTask</p>
+ * <p>Description: A bit like a callable but task is passed a Chronicle {@link Excerpt} to execute the write task with.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.IKeyCache</code></p>
+ * <p><code>org.helios.pag.store.WriteTask</code></p>
+ * @param <T> The return type of the task
  */
 
-public interface IKeyCache {
-    /** the load above which rehashing occurs. */
-    public static final float DEFAULT_LOAD_FACTOR = 0.5f;
-	
-	/** The cache no entry value, meaning a non-existent value not in the cache */
-	public static final long NO_ENTRY_VALUE = -1L;
-	
-
-	/**
-	 * Returns the size of the cache
-	 * @return the size of the cache
-	 * @see gnu.trove.impl.hash.THash#size()
-	 */
-	public int size();
-
-
-	/**
-	 * Clears the cache, but does not trim the cache size.
-	 */
-	public void clear();
-
-	/**
-	 * Clears the cache, and trims the cache size to zero.
-	 */
-	public void purge();
-	
-	/**
-	 * Removes all entries where the value is {@link #NO_ENTRY_VALUE}
-	 */
-	public void trimToSize();
-
+public interface WriteTask<T> {
+    /**
+     * Executes a write task with the passed excerpt and returns the result, or throws an exception if unable to do so.
+     * @param ex The excerpt to write with
+     * @return computed result
+     * @throws Exception if unable to compute a result
+     */
+    T call(Excerpt ex) throws Exception;
 }

@@ -52,6 +52,17 @@
 	  <artifactId>netty</artifactId>
 	</dependency>		
 	      
+      <!--
+	========================================
+	Jedis Artifacts
+	========================================
+	-->
+
+	<dependency>
+	  <groupId>redis.clients</groupId>
+	  <artifactId>jedis</artifactId>
+	</dependency>
+
 
       <!--
 	========================================

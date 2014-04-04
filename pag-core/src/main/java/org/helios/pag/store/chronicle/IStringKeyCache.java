@@ -1,4 +1,4 @@
-package org.helios.pag.store;
+package org.helios.pag.store.chronicle;
 
 import java.nio.charset.Charset;
 import java.util.Map;

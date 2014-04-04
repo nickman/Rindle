@@ -24,23 +24,14 @@
  */
 package org.helios.pag.store;
 
-import com.higherfrequencytrading.chronicle.Excerpt;
-
 /**
- * <p>Title: WriteTask</p>
- * <p>Description: A bit like a callable but task is passed a Chronicle {@link Excerpt} to execute the write task with.</p> 
+ * <p>Title: IStore</p>
+ * <p>Description: Defines a Rindle metric dictionary store</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.WriteTask</code></p>
- * @param <T> The return type of the task
+ * <p><code>org.helios.pag.store.IStore</code></p>
  */
 
-public interface WriteTask<T> {
-    /**
-     * Executes a write task with the passed excerpt and returns the result, or throws an exception if unable to do so.
-     * @param ex The excerpt to write with
-     * @return computed result
-     * @throws Exception if unable to compute a result
-     */
-    T call(Excerpt ex) throws Exception;
+public interface IStore {
+
 }
