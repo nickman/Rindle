@@ -58,7 +58,7 @@ public class RedisTest {
 	private static final Logger log = LogManager.getLogger(RedisTest.class);
 	
 	static final int KEYS = 10;
-	static boolean PIPE = false;
+	static boolean PIPE = true;
 	
 	static final byte[] GID = "GID".getBytes();
 	static final byte[] NAME = "NAME".getBytes();
@@ -215,7 +215,7 @@ public class RedisTest {
 			if(PIPE) {
 				pipe.hmset(bkey, hash);
 				pipe.set(opak, bkey);
-				//pipe.set(nkey, bkey);
+				pipe.set(nkey, bkey);
 			} else {
 				jedis.hmset(bkey, hash);
 				jedis.set(opak, bkey);
@@ -228,16 +228,23 @@ public class RedisTest {
 		
 		iter = opaques.iterator();
 		int misses = 0, hits = 0;
+		key=0;
 		for(String s: uuids) {
+			byte[] bkey = longToBytes(key);
 			byte[] nkey = s.getBytes(CHARSET);
 			byte[] opak = iter.next().op;
 
+			if(jedis.exists(bkey)) hits++;
+			else misses++;
+
+			
 			if(jedis.exists(nkey)) hits++;
 			else misses++;
 			
 			if(jedis.exists(opak)) hits++;
 			else misses++;
 			
+			key++;
 		}
 		
 		log.info("Verification. Hits: {}, Misses: {}", hits, misses);
