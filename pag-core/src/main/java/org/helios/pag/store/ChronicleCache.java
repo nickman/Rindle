@@ -94,9 +94,9 @@ public class ChronicleCache {
 	
 	
 	/** The store name index chronicle */
-	protected final IndexedChronicle indexedChronicle;
+	protected IndexedChronicle indexedChronicle;
 	/** This instance's chronicle writer */
-	protected final ChronicleCacheWriter writer; 
+	protected ChronicleCacheWriter writer; 
 	
 	/** Instance logger */
 	protected final Logger log;
@@ -192,6 +192,39 @@ public class ChronicleCache {
 		return new ChronicleCache(this, RO_NAME);
 	}
 	
+	private static final String[] EXTENSIONS = new String[] {".data", ".index"};
+	
+	static void closeDeleteReinit(ChronicleCache cache, boolean reinit) {
+		cache.purge();
+		try { cache.writer.writer.close(); } catch (Exception ex) {/* No Op */}
+		try { cache.indexedChronicle.close(); } catch (Exception ex) {/* No Op */}
+		ChronicleConfiguration config = new ChronicleConfiguration();
+		for(String ext: EXTENSIONS) {
+			File f = new File(config.dataDir, String.format("%s%s", cache.cacheName, ext));
+			boolean deleted = f.delete();
+			cache.log.info("Deleted Chronicle File [{}]:{}", f.getAbsoluteFile(), deleted);
+		}
+		if(reinit) {
+			try {
+				String fileName = config.dataDir.getAbsolutePath() + File.separator + cache.cacheName;
+				final boolean isMain = CACHE_NAME.equals(cache.cacheName);
+				cache.indexedChronicle = new IndexedChronicle(fileName, config.dataBitSizeHint, ByteOrder.nativeOrder(), true, false);
+				cache.indexedChronicle.useUnsafe(config.unsafe);
+				cache.indexedChronicle.multiThreaded(isMain);
+				cache.indexedChronicle.setEnumeratedMarshaller(UnsafeMetricDefinitionMarshaller.INSTANCE);
+				cache.writer = new ChronicleCacheWriter(cache.indexedChronicle, cache.writeSpinLock, cache.nameCache, cache.opaqueCache);
+				cache.log.info(StringHelper.banner("Reinited ChronicleCache [%s]", cache.cacheName));
+				if(isMain) cache.load();
+				
+			} catch (Exception ex) {
+				cache.log.fatal("Failed to reinit Cache [{}]", cache.cacheName, ex);
+				try { Thread.sleep(2000 ); Runtime.getRuntime().halt(-1); } catch (Exception x) {
+					cache.log.fatal("Was going to sleep before killing the JVM, but that failed too", x);
+					Runtime.getRuntime().halt(-1);
+				}
+			}
+		}
+	}
 	
 	/**
 	 * Defragments the main chronicle cache
@@ -241,10 +274,11 @@ public class ChronicleCache {
 			}
 			log.info("Defrag Phase 1 Complete in {} ms. Read {} Records. Deleted: {}, Retained: {}", 
 					et.elapsedMs(), defragCount, deletedCount, retainedCount);
+			from.close();
 			purge();
-			Excerpt tmp = from;
+			closeDeleteReinit(this, true);
 			from = to;
-			to = tmp;
+			to = writer.writer;
 			from.toStart();
 			to.toStart();
 			long writeBacks = 0;
@@ -317,12 +351,14 @@ public class ChronicleCache {
 //			}
 			
 //			if(cc.indexedChronicle.size()<1) {
-				for(int i = 0; i < insertLoops; i++) {
-					for(String uuid: TestKeyedCaches.uuidSamples.values()) {
-						marshaller.createOrUpdate(uuid);
-						marshaller.createOrUpdate(uuid.getBytes());
-					}
+			ElapsedTime et = SystemClock.startClock();
+			for(int i = 0; i < insertLoops; i++) {
+				for(String uuid: TestKeyedCaches.uuidSamples.values()) {
+					marshaller.createOrUpdate(uuid);
+					marshaller.createOrUpdate(uuid.getBytes());
 				}
+			}
+			cc.log.info("Inital Load Test Loop: {}", et.printAvg("\n\tCreateOrUpdates", TestKeyedCaches.uuidSamples.size() * insertLoops * 2));
 //			}
 			cc.log.info("ID Cache Size: {}", cc.idCache.size());
 			cc.log.info("Name Cache Size: {}", cc.nameCache.size());
@@ -330,13 +366,21 @@ public class ChronicleCache {
 			cc.log.info("Chronicle Cache Size: {}", cc.indexedChronicle.size());
 			
 			cc.log.info("================== Initial Inserts Complete =================="); 
-			
-//			cnt = 0;
+
 			for(String uuid: TestKeyedCaches.uuidSamples.values()) {
 				marshaller.createOrUpdate(uuid, uuid.getBytes());
-//				cnt++; if(cnt==20) break;
 			}
-//			
+			
+			et = SystemClock.startClock();
+			for(int i = 0; i < insertLoops; i++) {
+				for(String uuid: TestKeyedCaches.uuidSamples.values()) {
+					marshaller.createOrUpdate(uuid);
+					marshaller.createOrUpdate(uuid.getBytes());
+					marshaller.createOrUpdate(uuid, uuid.getBytes());
+				}
+			}
+			cc.log.info("Test Merge Overlay: {}", et.printAvg("\n\tCreateOrUpdates", TestKeyedCaches.uuidSamples.size() * insertLoops * 3));
+			//			
 			cc.log.info("ID Cache Size: {}", cc.idCache.size());
 			cc.log.info("Name Cache Size: {}", cc.nameCache.size());
 			cc.log.info("Opaque Cache Size: {}", cc.opaqueCache.size());
@@ -345,7 +389,23 @@ public class ChronicleCache {
 //			
 			cc.log.info("================== Combined Inserts Complete ==================");
 //			
+			et = SystemClock.startClock();
 			cc.defragChronicle();
+			cc.log.info("Defrag: {}", et.printAvg("\n\tDefrag", 1));
+			cc.log.info("ID Cache Size: {}", cc.idCache.size());
+			cc.log.info("Name Cache Size: {}", cc.nameCache.size());
+			cc.log.info("Opaque Cache Size: {}", cc.opaqueCache.size());
+			cc.log.info("Chronicle Cache Size: {}", cc.indexedChronicle.size());
+
+//			et = SystemClock.startClock();
+//			for(int i = 0; i < insertLoops; i++) {
+//				for(String uuid: TestKeyedCaches.uuidSamples.values()) {
+//					marshaller.createOrUpdate(uuid);
+//					marshaller.createOrUpdate(uuid.getBytes());
+//					marshaller.createOrUpdate(uuid, uuid.getBytes());
+//				}
+//			}
+//			cc.log.info("Post Defrag Test Merge Overlay: {}", et.printAvg("\n\tCreateOrUpdates", TestKeyedCaches.uuidSamples.size() * insertLoops * 3));
 			
 			
 //			cc.indexedChronicle.clear();
@@ -393,6 +453,11 @@ public class ChronicleCache {
 			opaqueCache.clear();
 			opaqueCache.trimToSize();
 		}
+		if(idCache!=null) {
+			idCache.clear();
+			idCache.trimToSize();
+		}
+		
 	}
 	
 	/**
@@ -401,6 +466,7 @@ public class ChronicleCache {
 	private void clearCache() {
 		if(nameCache!=null) nameCache.clear();
 		if(opaqueCache!=null) opaqueCache.clear();
+		if(idCache!=null) idCache.clear();
 	}
 	
 

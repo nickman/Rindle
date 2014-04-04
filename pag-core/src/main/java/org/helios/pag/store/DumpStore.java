@@ -58,16 +58,21 @@ public class DumpStore {
 			ex = ic.createExcerpt();
 			UnsafeMetricDefinitionMarshaller marshaller = UnsafeMetricDefinitionMarshaller.INSTANCE;
 			ex.toStart();
+			long cnt = 0;
 			while(ex.hasNextIndex()) {
 				ex.nextIndex();
 				long index = ex.index();
 				if(ex.readByte(0)==1) {
-					System.out.println(index + ":-> Deleted: " + ex.size() + " bytes");
+					//System.out.println(index + ":-> Deleted: " + ex.size() + " bytes");
 					continue;
 				}
 				UnsafeMetricDefinition umd = marshaller.read(ex);
-//				System.out.println(index + ":-> " + umd);
+				if(index%1000==0) {
+					System.out.println(index + ":-> " + umd);
+				}
+				cnt++;
 			}
+			System.out.println("Total Dumped Records:" + cnt);
 		} catch (Exception e) {
 			e.printStackTrace(System.err);
 		} finally {
