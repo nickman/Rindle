@@ -24,15 +24,15 @@
  */
 package org.helios.pag.store.redis;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
+import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Formatter;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -44,7 +44,6 @@ import org.helios.pag.util.SystemClock.ElapsedTime;
 
 import redis.clients.jedis.BinaryJedis;
 import redis.clients.jedis.Pipeline;
-import redis.clients.jedis.Response;
 
 /**
  * <p>Title: RedisTest</p>
@@ -57,7 +56,7 @@ import redis.clients.jedis.Response;
 public class RedisTest {
 	private static final Logger log = LogManager.getLogger(RedisTest.class);
 	
-	static final int KEYS = 10;
+	static final int KEYS = 1000;
 	static boolean PIPE = true;
 	
 	static final byte[] GID = "GID".getBytes();
@@ -140,120 +139,168 @@ public class RedisTest {
 			opaques.add(new ByteArrayHolder());
 		}
 		log.info("Opaque Key Count:" + opaques.size());
-		Map<byte[], byte[]> hash = new HashMap<byte[], byte[]>(2);
-		
-		log.info("Starting Warmup");
+		InputStream is = null;
+		ByteArrayOutputStream baos = null;
+		byte[] buff = new byte[1024];
+		int bytesRead = -1;
+		try {
+			is = getClass().getClassLoader().getResourceAsStream("scripts/lua/processNameOpaque.lua");
+			baos = new ByteArrayOutputStream(is.available());
+			while((bytesRead = is.read(buff))!=-1) {
+				baos.write(buff, 0, bytesRead);
+			}
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to read lua",ex);
+		} finally {
+			if(is!=null) try { is.close(); } catch (Exception ex) {}
+		}
+		byte[] script = baos.toByteArray();
+		log.info("Bytes Read: {}", script.length);
+		MessageDigest crypt = null;
+		try {
+			crypt = MessageDigest.getInstance("SHA1");
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to SHA1T !",ex);
+		}
+		crypt.reset();
+		crypt.update(script);
+		byte[] sha1 = crypt.digest();
+		Formatter formatter = new Formatter();
+		for(byte b: sha1) {
+			formatter.format("%02x", b);
+		}
+		final String shaStr = formatter.toString();
+		formatter.close();
+		jedis.eval(script);
+		Object sha = jedis.evalsha(shaStr.getBytes());
+		final byte[] shaBytes = shaStr.getBytes();
+		log.info("Sha: {}", sha);
 		Pipeline pipe = jedis.pipelined();
-		
-		for(int i = 0 ; i < loops; i++) {			
-			long key = -1L;
-			if(PIPE) {
-				Response<Long> rez = pipe.incrBy(GIDCOUNTER, KEYS);
-				pipe.sync();
-				key = rez.get();
-			} else {
-				key = 0;
-			}
-			Iterator<ByteArrayHolder> iter = opaques.iterator();
-			for(String s: uuids) {
-				key = PIPE ? --key : jedis.incr(GIDCOUNTER);
-				byte[] bkey = longToBytes(key);
-				byte[] nkey = s.getBytes(CHARSET);
-				byte[] opak = iter.next().op;
-				
-				
-				hash.put(NAME, nkey);
-				hash.put(OPAQUE, opak);
-				if(PIPE) {
-					pipe.hmset(bkey, hash);
-					pipe.set(opak, bkey);
-					pipe.set(nkey, bkey);
-				} else {
-					jedis.hmset(bkey, hash);
-					jedis.set(opak, bkey);
-					jedis.set(nkey, bkey);
-				}
-			}
-			if(PIPE) {
-				pipe.sync();
-			}
-			if(PIPE) {
-				pipe.flushDB(); pipe.sync();
-			} else {
-				jedis.flushDB();
-			}
-			if(i%10==0) log.info("Warmup loop #{}", i);
-			
-		}
-		
-		
-		
-		
-		
-		log.info("Starting Main Key Insert");
 		ElapsedTime et = SystemClock.startClock();
-		long key = -1L;
-		if(PIPE) {
-			Response<Long> rez = pipe.incrBy(GIDCOUNTER, KEYS);
-			pipe.sync();
-			key = rez.get();
-		} else {
-			key = 0;
-		}
-		final long TOPKEY = key;
-		log.info("Starting Key: {}", key);
 		Iterator<ByteArrayHolder> iter = opaques.iterator();
 		for(String s: uuids) {
-			key = PIPE ? --key : jedis.incr(GIDCOUNTER);			
-			byte[] bkey = longToBytes(key);
-			byte[] nkey = s.getBytes(CHARSET);
-			byte[] opak = iter.next().op;
-			
-			
-			hash.put(NAME, nkey);
-			hash.put(OPAQUE, opak);
-			if(PIPE) {
-				pipe.hmset(bkey, hash);
-				pipe.set(opak, bkey);
-				pipe.set(nkey, bkey);
-			} else {
-				jedis.hmset(bkey, hash);
-				jedis.set(opak, bkey);
-				jedis.set(nkey, bkey);
-			}
-		}
-		if(PIPE) {
-			pipe.sync();
+			byte[] m = s.getBytes();
+			byte[] o = iter.next().op;
+			//jedis.evalsha(shaBytes, Arrays.asList(m, o), null);
+			pipe.evalsha(shaBytes, Arrays.asList(m, o), null);
 		}
 		
-		iter = opaques.iterator();
-		int misses = 0, hits = 0;
-		key=0;
-		for(String s: uuids) {
-			byte[] bkey = longToBytes(key);
-			byte[] nkey = s.getBytes(CHARSET);
-			byte[] opak = iter.next().op;
-
-			if(jedis.exists(bkey)) hits++;
-			else misses++;
-
-			
-			if(jedis.exists(nkey)) hits++;
-			else misses++;
-			
-			if(jedis.exists(opak)) hits++;
-			else misses++;
-			
-			key++;
-		}
 		
-		log.info("Verification. Hits: {}, Misses: {}", hits, misses);
+		log.info("Keys: {}\n\t{}", jedis.dbSize(), et.printAvg("Inserts", uuids.size()));
+//		Map<byte[], byte[]> hash = new HashMap<byte[], byte[]>(2);
+//		
+//		log.info("Starting Warmup");
+//		Pipeline pipe = jedis.pipelined();
+//		
+//		for(int i = 0 ; i < loops; i++) {			
+//			long key = -1L;
+//			if(PIPE) {
+//				Response<Long> rez = pipe.incrBy(GIDCOUNTER, KEYS);
+//				pipe.sync();
+//				key = rez.get();
+//			} else {
+//				key = 0;
+//			}
+//			Iterator<ByteArrayHolder> iter = opaques.iterator();
+//			for(String s: uuids) {
+//				key = PIPE ? --key : jedis.incr(GIDCOUNTER);
+//				byte[] bkey = longToBytes(key);
+//				byte[] nkey = s.getBytes(CHARSET);
+//				byte[] opak = iter.next().op;
+//				
+//				
+//				hash.put(NAME, nkey);
+//				hash.put(OPAQUE, opak);
+//				if(PIPE) {
+//					pipe.hmset(bkey, hash);
+//					pipe.set(opak, bkey);
+//					pipe.set(nkey, bkey);
+//				} else {
+//					jedis.hmset(bkey, hash);
+//					jedis.set(opak, bkey);
+//					jedis.set(nkey, bkey);
+//				}
+//			}
+//			if(PIPE) {
+//				pipe.sync();
+//			}
+//			if(PIPE) {
+//				pipe.flushDB(); pipe.sync();
+//			} else {
+//				jedis.flushDB();
+//			}
+//			if(i%10==0) log.info("Warmup loop #{}", i);
+//			
+//		}
+//		
+//		
+//		
+//		
+//		
+//		log.info("Starting Main Key Insert");
+//		ElapsedTime et = SystemClock.startClock();
+//		long key = -1L;
 //		if(PIPE) {
-//			pipe.flushDB(); pipe.sync();
+//			Response<Long> rez = pipe.incrBy(GIDCOUNTER, KEYS);
+//			pipe.sync();
+//			key = rez.get();
 //		} else {
-//			jedis.flushDB();
-//		}		
-		log.info("Complete.(Pipeline: {}) Last Key: {}\n\t {}", PIPE, key, et.printAvg("Key Inserts", KEYS));
+//			key = 0;
+//		}
+//		final long TOPKEY = key;
+//		log.info("Starting Key: {}", key);
+//		Iterator<ByteArrayHolder> iter = opaques.iterator();
+//		for(String s: uuids) {
+//			key = PIPE ? --key : jedis.incr(GIDCOUNTER);			
+//			byte[] bkey = longToBytes(key);
+//			byte[] nkey = s.getBytes(CHARSET);
+//			byte[] opak = iter.next().op;
+//			
+//			
+//			hash.put(NAME, nkey);
+//			hash.put(OPAQUE, opak);
+//			if(PIPE) {
+//				pipe.hmset(bkey, hash);
+//				pipe.set(opak, bkey);
+//				pipe.set(nkey, bkey);
+//			} else {
+//				jedis.hmset(bkey, hash);
+//				jedis.set(opak, bkey);
+//				jedis.set(nkey, bkey);
+//			}
+//		}
+//		if(PIPE) {
+//			pipe.sync();
+//		}
+//		
+//		iter = opaques.iterator();
+//		int misses = 0, hits = 0;
+//		key=0;
+//		for(String s: uuids) {
+//			byte[] bkey = longToBytes(key);
+//			byte[] nkey = s.getBytes(CHARSET);
+//			byte[] opak = iter.next().op;
+//
+//			if(jedis.exists(bkey)) hits++;
+//			else misses++;
+//
+//			
+//			if(jedis.exists(nkey)) hits++;
+//			else misses++;
+//			
+//			if(jedis.exists(opak)) hits++;
+//			else misses++;
+//			
+//			key++;
+//		}
+//		
+//		log.info("Verification. Hits: {}, Misses: {}", hits, misses);
+////		if(PIPE) {
+////			pipe.flushDB(); pipe.sync();
+////		} else {
+////			jedis.flushDB();
+////		}		
+//		log.info("Complete.(Pipeline: {}) Last Key: {}\n\t {}", PIPE, key, et.printAvg("Key Inserts", KEYS));
 	}
 	
 	public void close() {
@@ -266,11 +313,33 @@ public class RedisTest {
 	public static void main(String[] args) {
 		RedisTest test = null;
 		try {
-			test = new RedisTest("10.12.114.48", 6379);
+//			test = new RedisTest("10.12.114.48", 6379);
+			test = new RedisTest("localhost", 6379);
 		} finally {
 			if(test!=null) test.close();
 		}
 
 	}
+	
+	/*
+	 * Lua Master Processor
+	 * ====================
+	 * ARGS: metricName, opaqueKey
+	 * 	if(metricName!=null) mid = get(metricName)
+	 * 	if(opaqueKey!=null) oid = get(opaqueKey)
+	 * 
+	 * 	Conditions:
+	 * 		both null: error
+	 * 		one null:
+	 * 			id found: return
+	 * 			else save, return new id
+	 *  	neither null:
+	 *  		both ids found:
+	 *  			ids equal: return id
+	 *  			ids diff: <???>
+	 *  		neither id found:  save both under new id and return new id
+	 *  		one id found:
+	 *  			update for missing, return id
+	 */
 
 }
