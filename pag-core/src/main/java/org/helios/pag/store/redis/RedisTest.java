@@ -25,14 +25,17 @@
 package org.helios.pag.store.redis;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Formatter;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -144,7 +147,8 @@ public class RedisTest {
 		byte[] buff = new byte[1024];
 		int bytesRead = -1;
 		try {
-			is = getClass().getClassLoader().getResourceAsStream("scripts/lua/processNameOpaque.lua");
+//			is = getClass().getClassLoader().getResourceAsStream("scripts/lua/processNameOpaque.lua");
+			is = new FileInputStream("/home/nwhitehead/hprojects/Rindle/pag-core/src/main/resources/scripts/lua/processNameOpaque.lua");
 			baos = new ByteArrayOutputStream(is.available());
 			while((bytesRead = is.read(buff))!=-1) {
 				baos.write(buff, 0, bytesRead);
@@ -171,20 +175,23 @@ public class RedisTest {
 		}
 		final String shaStr = formatter.toString();
 		formatter.close();
+		Pipeline pipe = jedis.pipelined();
 		jedis.eval(script);
 		Object sha = jedis.evalsha(shaStr.getBytes());
 		final byte[] shaBytes = shaStr.getBytes();
-		log.info("Sha: {}", sha);
-		Pipeline pipe = jedis.pipelined();
+		log.info("Sha: {}", shaStr);
 		ElapsedTime et = SystemClock.startClock();
 		Iterator<ByteArrayHolder> iter = opaques.iterator();
+		List<String> EMPTY = Collections.emptyList();
 		for(String s: uuids) {
 			byte[] m = s.getBytes();
 			byte[] o = iter.next().op;
-			//jedis.evalsha(shaBytes, Arrays.asList(m, o), null);
-			pipe.evalsha(shaBytes, Arrays.asList(m, o), null);
+//			byte[] o = null;
+//			jedis.evalsha(shaBytes, Arrays.asList(m, o), null);
+//			jedis.evalsha(shaBytes, Arrays.asList(m), null);
+			pipe.evalsha(shaStr, Arrays.asList(new String(m, CHARSET), new String(o, CHARSET)), EMPTY);			
 		}
-		
+		pipe.sync();
 		
 		log.info("Keys: {}\n\t{}", jedis.dbSize(), et.printAvg("Inserts", uuids.size()));
 //		Map<byte[], byte[]> hash = new HashMap<byte[], byte[]>(2);
