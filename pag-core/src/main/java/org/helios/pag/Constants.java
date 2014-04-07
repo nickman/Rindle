@@ -69,6 +69,24 @@ public class Constants {
 	public static final boolean DEFAULT_REG_SPACE_FOR_SPEED = true;
 	
 	// ===========================================================================================	
+	//		JMX Config
+	// ===========================================================================================
+	/** The config property name for the default JMX ObjectName domain */
+	public static final String JMX_DOMAIN_PREFIX = "helios.pag.jmx.domain";
+	/** The default value for the registry period map initial size */
+	public static final String DEFAULT_JMX_DOMAIN_PREFIX = "helios.pag";
+	
+	// ===========================================================================================	
+	//		IStore Config
+	// ===========================================================================================
+	/** The config property name for the default IStore implementation */
+	public static final String ISTORE_CLASS_NAME = "helios.pag.istore.class";
+	/** The default value for the registry period map initial size */
+	public static final String DEFAULT_ISTORE_CLASS_NAME = "org.helios.pag.store.redis.RedisStore";
+	
+	
+	
+	// ===========================================================================================	
 	//		Period Config
 	// ===========================================================================================
 	/** The config property name for the minimum granularity for requested periods */

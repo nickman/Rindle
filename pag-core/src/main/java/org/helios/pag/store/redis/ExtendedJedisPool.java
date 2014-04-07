@@ -22,18 +22,39 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
+package org.helios.pag.store.redis;
 
-import com.google.common.util.concurrent.Service;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+
+import redis.clients.jedis.Jedis;
+import redis.clients.util.Pool;
 
 /**
- * <p>Title: IStore</p>
- * <p>Description: Defines a Rindle metric dictionary store</p> 
+ * <p>Title: ExtendedJedisPool</p>
+ * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.IStore</code></p>
+ * <p><code>org.helios.pag.store.redis.ExtendedJedisPool</code></p>
  */
 
-public interface IStore extends Service {
+public class ExtendedJedisPool extends Pool<Jedis> {
+
+	/**
+	 * Creates a new ExtendedJedisPool
+	 * @param poolConfig
+	 * @param host
+	 * @param port
+	 * @param timeout
+	 * @param password
+	 * @param database
+	 * @param clientName
+	 */
+	public ExtendedJedisPool(GenericObjectPoolConfig poolConfig, String host,
+			int port, int timeout, String password, int database,
+			String clientName) {
+		//super(poolConfig, host, port, timeout, password, database, clientName);
+		super(poolConfig, new ExtendedJedisFactory(host, port, timeout, password,
+				database, clientName));
+	}
 
 }

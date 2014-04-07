@@ -36,7 +36,7 @@ public class RedisConstants {
 	/** The configuration property name for the Redis host name or IP address  */
 	public static final String REDIS_HOST_CONF = "helios.pag.redis.host";
 	/** The default Redis host name or IP address  */
-	public static final String DEFAULT_REDIS_HOST = "localhost";
+	public static final String DEFAULT_REDIS_HOST = "localhost"; // 10.12.114.48
 	
 	/** The configuration property name for the Redis listening port */
 	public static final String REDIS_PORT_CONF = "helios.pag.redis.port";
@@ -57,6 +57,12 @@ public class RedisConstants {
 	public static final String REDIS_CLIENT_NAME_CONF = "helios.pag.redis.clientname";
 	/** The default Redis connection client name  */
 	public static final String DEFAULT_REDIS_CLIENT_NAME = "Rindle";
+
+	/** The configuration property name for the Redis connection pool's connection timeout in s. */
+	public static final String REDIS_TIMEOUT_CONF = "helios.pag.redis.timeout";
+	/** The default configuration for the Redis connection pool's connection timeout in s. */
+	public static final int DEFAULT_REDIS_TIMEOUT = 15;
+	
 	
 	//====================================================================================================	
 	

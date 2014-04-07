@@ -115,7 +115,7 @@ public class MultiThreadedEWMATest {
 			System.gc(); System.gc();
 			LOG.info(UnsafeAdapter.printUnsafeMemoryStats());
 		} catch (Exception x) {
-			LOG.error("Main error", x);
+			LOG.error("RindleMain error", x);
 		}
 	}
 

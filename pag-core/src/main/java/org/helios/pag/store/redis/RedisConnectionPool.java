@@ -24,9 +24,64 @@
  */
 package org.helios.pag.store.redis;
 
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_AUTH;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_BLOCK_WHEN_EXHAUSTED;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_CLIENT_NAME;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_DB;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_EVICTION_POLICY_CLASS_NAME;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_HOST;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_JMX_ENABLED;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_JMX_NAME_PREFIX;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_LIFO;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_MAX_IDLE;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_MAX_TOTAL;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_MAX_WAIT;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_MIN_EVICTABLE_IDLE_TIME;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_MIN_IDLE;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_NUM_TESTS_PER_EVICTION_RUN;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_PORT;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_SOFT_MIN_EVICTABLE_IDLE_TIME;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_TEST_ON_BORROW;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_TEST_ON_RETURN;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_TEST_WHILE_IDLE;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_TIMEOUT;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_TIME_BETWEEN_EVICTION_RUNS;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_AUTH_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_BLOCK_WHEN_EXHAUSTED_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_CLIENT_NAME_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_DB_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_EVICTION_POLICY_CLASS_NAME_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_HOST_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_JMX_ENABLED_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_JMX_NAME_PREFIX_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_LIFO_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_MAX_IDLE_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_MAX_TOTAL_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_MAX_WAIT_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_MIN_EVICTABLE_IDLE_TIME_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_MIN_IDLE_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_NUM_TESTS_PER_EVICTION_RUN_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_PORT_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_SOFT_MIN_EVICTABLE_IDLE_TIME_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_TEST_ON_BORROW_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_TEST_ON_RETURN_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_TEST_WHILE_IDLE_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_TIMEOUT_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_TIME_BETWEEN_EVICTION_RUNS_CONF;
+
+import org.apache.commons.pool2.PooledObject;
+import org.apache.commons.pool2.PooledObjectFactory;
+import org.apache.commons.pool2.impl.DefaultPooledObject;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.helios.pag.util.ConfigurationHelper;
-import static org.helios.pag.store.redis.RedisConstants.*;
-import redis.clients.jedis.JedisPoolConfig;
+import org.helios.pag.util.StringHelper;
+
+import redis.clients.jedis.BinaryJedis;
+import redis.clients.util.Pool;
+
+import com.google.common.util.concurrent.AbstractService;
 
 /**
  * <p>Title: RedisConnectionPool</p>
@@ -36,9 +91,12 @@ import redis.clients.jedis.JedisPoolConfig;
  * <p><code>org.helios.pag.store.redis.RedisConnectionPool</code></p>
  */
 
-public class RedisConnectionPool {
+public class RedisConnectionPool extends AbstractService implements PooledObjectFactory<BinaryJedis> {
 	/** The redis connection pool configuration */
-	protected final JedisPoolConfig poolConfig = new JedisPoolConfig();
+	protected final GenericObjectPoolConfig  poolConfig = new GenericObjectPoolConfig ();
+	
+	/** Instance logger */
+	protected final Logger log = LogManager.getLogger(getClass());
 	
 	/** The redis host or ip address */
 	protected final String redisHost;
@@ -46,10 +104,16 @@ public class RedisConnectionPool {
 	protected final int redisPort;
 	/** The redis default DB id */
 	protected final int redisDb;
+	/** The redis connection timeout in s. */
+	protected final int timeout;
+	
 	/** The redis authentication */
 	protected final String redisAuth;
 	/** The redis client name */
 	protected final String clientName;
+	
+	/** The jedis connection pool */
+	protected Pool<BinaryJedis> pool = null;
 
 	/**
 	 * Creates a new RedisConnectionPool
@@ -60,7 +124,7 @@ public class RedisConnectionPool {
 		redisDb= ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_DB_CONF, DEFAULT_REDIS_DB);
 		redisAuth = ConfigurationHelper.getSystemThenEnvProperty(REDIS_AUTH_CONF, DEFAULT_REDIS_AUTH);
 		clientName = ConfigurationHelper.getSystemThenEnvProperty(REDIS_CLIENT_NAME_CONF, DEFAULT_REDIS_CLIENT_NAME);
-		
+		timeout = ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_TIMEOUT_CONF, DEFAULT_REDIS_TIMEOUT);
 		poolConfig.setMaxTotal(ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_MAX_TOTAL_CONF, DEFAULT_REDIS_MAX_TOTAL));
 		poolConfig.setMinIdle(ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_MIN_IDLE_CONF, DEFAULT_REDIS_MIN_IDLE));
 		poolConfig.setMaxIdle(ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_MAX_IDLE_CONF, DEFAULT_REDIS_MAX_IDLE));
@@ -80,4 +144,103 @@ public class RedisConnectionPool {
 		
 	}
 
+	/**
+	 * <p>Starts the pool</p>
+	 * {@inheritDoc}
+	 * @see com.google.common.util.concurrent.AbstractService#doStart()
+	 */
+	@Override
+	protected void doStart() {
+		//pool = new JedisPool(poolConfig, redisHost, redisPort, timeout, redisAuth, redisDb, clientName);
+		pool = new BinaryJedisPool(poolConfig, this);
+		log.info(StringHelper.banner("Started Redis Connection Pool.\n\tHost:%s\n\tPort:%s", redisHost, redisPort));
+	}
+
+	/**
+	 * <p>Stops and destroys the pool</p>
+	 * {@inheritDoc}
+	 * @see com.google.common.util.concurrent.AbstractService#doStop()
+	 */
+	@Override
+	protected void doStop() {
+		if(pool!=null) {
+			log.info("Stopping Redis Connection Pool....");
+			pool.destroy();
+			log.info("Redis Connection Pool Stopped");
+		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.apache.commons.pool2.PooledObjectFactory#makeObject()
+	 */
+	@Override
+	public PooledObject<BinaryJedis> makeObject() throws Exception {		
+		BinaryJedis binJed = new BinaryJedis(redisHost, redisPort, timeout);
+		binJed.clientSetname(clientName.getBytes());		
+		binJed.connect();
+		binJed.select(redisDb);
+		return new DefaultPooledObject<BinaryJedis>(binJed);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.apache.commons.pool2.PooledObjectFactory#destroyObject(org.apache.commons.pool2.PooledObject)
+	 */
+	@Override
+	public void destroyObject(PooledObject<BinaryJedis> pooledObject) throws Exception {
+		BinaryJedis binJed = pooledObject.getObject();
+		binJed.close();
+		binJed = null;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.apache.commons.pool2.PooledObjectFactory#validateObject(org.apache.commons.pool2.PooledObject)
+	 */
+	@Override
+	public boolean validateObject(PooledObject<BinaryJedis> pooledObject) {
+		BinaryJedis binJed = pooledObject.getObject();
+		try {
+			binJed.getDB();
+			return true;
+		} catch (Exception ex) {
+			return false;
+		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.apache.commons.pool2.PooledObjectFactory#activateObject(org.apache.commons.pool2.PooledObject)
+	 */
+	@Override
+	public void activateObject(PooledObject<BinaryJedis> p) throws Exception {
+		// TODO Auto-generated method stub
+		
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.apache.commons.pool2.PooledObjectFactory#passivateObject(org.apache.commons.pool2.PooledObject)
+	 */
+	@Override
+	public void passivateObject(PooledObject<BinaryJedis> p) throws Exception {
+		// TODO Auto-generated method stub
+		
+	}
+	
+	class BinaryJedisPool extends Pool<BinaryJedis> {
+
+		/**
+		 * Creates a new BinaryJedisPool
+		 * @param poolConfig
+		 * @param factory
+		 */
+		public BinaryJedisPool(GenericObjectPoolConfig poolConfig,
+				PooledObjectFactory<BinaryJedis> factory) {
+			super(poolConfig, factory);
+		}
+		
+	}
+	
 }

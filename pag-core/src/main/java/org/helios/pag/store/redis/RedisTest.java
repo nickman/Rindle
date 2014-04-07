@@ -244,7 +244,7 @@ public class RedisTest {
 //		
 //		
 //		
-//		log.info("Starting Main Key Insert");
+//		log.info("Starting RindleMain Key Insert");
 //		ElapsedTime et = SystemClock.startClock();
 //		long key = -1L;
 //		if(PIPE) {
