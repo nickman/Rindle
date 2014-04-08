@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2014, Helios Development Group and individual contributors
+ * Copyright 2007, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,18 +22,25 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
-
-import org.helios.pag.RindleService;
+package redis.clients.nedis.netty;
 
 /**
- * <p>Title: IStore</p>
- * <p>Description: Defines a Rindle metric dictionary store</p> 
+ * <p>Title: ConnectionListener</p>
+ * <p>Description: Defines a listener that is notified of changes in the connectivity state of an {@link OptimizedPubSub}.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.IStore</code></p>
+ * <p><code>redis.clients.nedis.netty.ConnectionListener</code></p>
  */
-
-public interface IStore extends RindleService {
-
-}
+public interface ConnectionListener {
+	/**
+	 * Callback when the pubSub connects
+	 * @param pubSub the pubSub that connected 
+	 */
+	public void onConnect(OptimizedPubSub pubSub);
+	/**
+	 * Callback when the pubSub disconnects
+	 * @param pubSub the pubSub that disconnected
+	 * @param cause The exception that caused the unintended disconnect. Null if disconnect was requested 
+	 */
+	public void onDisconnect(OptimizedPubSub pubSub, Throwable cause);
+} 

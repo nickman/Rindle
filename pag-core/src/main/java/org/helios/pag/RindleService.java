@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2014, Helios Development Group and individual contributors
+ * Copyright 2007, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,18 +22,24 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
+package org.helios.pag;
 
-import org.helios.pag.RindleService;
+import java.util.Collection;
+
+import com.google.common.util.concurrent.Service;
 
 /**
- * <p>Title: IStore</p>
- * <p>Description: Defines a Rindle metric dictionary store</p> 
+ * <p>Title: RindleService</p>
+ * <p>Description: Defines a lifecycle and dependency model for rindle services</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.IStore</code></p>
+ * <p><code>org.helios.pag.RindleService</code></p>
  */
 
-public interface IStore extends RindleService {
-
+public interface RindleService extends Service {
+	/**
+	 * Returns the dependent services of a RindleService
+	 * @return the dependent services of a RindleService
+	 */
+	public Collection<RindleService> getDependentServices();
 }

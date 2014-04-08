@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2014, Helios Development Group and individual contributors
+ * Copyright 2007, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,18 +22,22 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
-
-import org.helios.pag.RindleService;
+package redis.clients.nedis.netty;
 
 /**
- * <p>Title: IStore</p>
- * <p>Description: Defines a Rindle metric dictionary store</p> 
+ * <p>Title: RedisPubEvent</p>
+ * <p>Description: Enum defining a multibulk reply for a Redis multipulk reply replay decoder</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.IStore</code></p>
+ * <p><code>redis.clients.nedis.netty.RedisPubEvent</code></p>
  */
-
-public interface IStore extends RindleService {
-
+public enum RedisPubEvent {
+	CR,
+	TYPE,
+	ARG_COUNT,
+	NEXT_SIZE_PREFIX,
+	NEXT_SIZE,
+	END_OF_ARG,
+	ERROR,
+	NEXT_MESSAGE;
 }

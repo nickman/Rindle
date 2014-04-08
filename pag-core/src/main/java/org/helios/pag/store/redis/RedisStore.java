@@ -24,8 +24,14 @@
  */
 package org.helios.pag.store.redis;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.helios.pag.RindleService;
 import org.helios.pag.control.RindleMain;
 import org.helios.pag.store.IStore;
 import org.helios.pag.util.StringHelper;
@@ -41,20 +47,30 @@ import com.google.common.util.concurrent.AbstractService;
  */
 
 public class RedisStore extends AbstractService implements IStore {
-	/** The redis connection pool */
-	protected RedisConnectionPool rcp = null;
 	/** Instance logger */
 	protected Logger log = LogManager.getLogger(getClass());
+	/** The redis connection pool */
+	protected RedisConnectionPool connectionPool = new RedisConnectionPool();
+	
 	
 	
 	/**
 	 * Creates a new RedisStore
 	 */
 	public RedisStore() {
-		// TODO Auto-generated constructor stub
+		log.info("State: {}", state());
 	}
 
-
+	public List<String> foo() {
+		return connectionPool.redisTask(new RedisTask<List<String>>() {
+			@Override
+			public List<String> redisTask(ExtendedJedis jedis) throws Exception {
+				// TODO Auto-generated method stub
+				return Arrays.asList(jedis.clientList());
+			}
+		});
+	}
+	
 	/**
 	 * <p>Starts the Redis Store Service</p>
 	 * {@inheritDoc}
@@ -62,13 +78,33 @@ public class RedisStore extends AbstractService implements IStore {
 	 */
 	@Override
 	protected void doStart() {
-		rcp = new RedisConnectionPool();
-		rcp.start().addListener(new Runnable(){
-			public void run() {
-				log.info(StringHelper.banner("RedisConnectionPool Started"));
+		final RedisStore service = this;						
+		connectionPool.addListener(new Listener() {
+			@Override
+			public void running() {
+				log.info("Foo: {}", foo());
+				service.notifyStarted();
+			}
+
+			@Override
+			public void starting() {
+			}
+
+			@Override
+			public void stopping(State from) {
+				log.info(StringHelper.banner("RedisConnectionPool Stopping from %s", from));
+			}
+
+			@Override
+			public void terminated(State from) {
+				log.info(StringHelper.banner("RedisConnectionPool Terminated from %s", from));				
+			}
+
+			@Override
+			public void failed(State from, Throwable failure) {
+				log.error("Failed from {}", from, failure);				
 			}
 		}, RindleMain.getInstance().getThreadPool());
-		
 	}
 
 
@@ -79,11 +115,18 @@ public class RedisStore extends AbstractService implements IStore {
 	 */
 	@Override
 	protected void doStop() {
-		rcp.stop().addListener(new Runnable(){
-			public void run() {
-				log.info(StringHelper.banner("RedisConnectionPool Shut Down"));
-			}
-		}, RindleMain.getInstance().getThreadPool());		
+//		connectionPool.stop().addListener(new Runnable(){
+//			public void run() {
+//				log.info(StringHelper.banner("RedisConnectionPool Shut Down"));
+//			}
+//		}, RindleMain.getInstance().getThreadPool());		
+	}
+
+	@Override
+	public Collection<RindleService> getDependentServices() {
+		Collection<RindleService> services = new ArrayList<RindleService>();
+		services.add(connectionPool);
+		return services;
 	}
 
 }

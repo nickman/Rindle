@@ -74,12 +74,12 @@ public class RedisConstants {
 	/** The configuration property name for the Redis minimum idle number of connections per pool  */
 	public static final String REDIS_MIN_IDLE_CONF = "helios.pag.redis.minidle";
 	/** The default configuration for the Redis minimum idle number of connections per pool  */
-	public static final int DEFAULT_REDIS_MIN_IDLE = 1;
+	public static final int DEFAULT_REDIS_MIN_IDLE = 2;
 
 	/** The configuration property name for the Redis maximum idle number of connections per pool  */
 	public static final String REDIS_MAX_IDLE_CONF = "helios.pag.redis.maxidle";
 	/** The default configuration for the Redis maximum idle number of connections per pool  */
-	public static final int DEFAULT_REDIS_MAX_IDLE = 1;
+	public static final int DEFAULT_REDIS_MAX_IDLE = 3;
 	
 	//====================================================================================================
 

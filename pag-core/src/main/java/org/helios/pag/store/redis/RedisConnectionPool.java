@@ -69,17 +69,15 @@ import static org.helios.pag.store.redis.RedisConstants.REDIS_TEST_WHILE_IDLE_CO
 import static org.helios.pag.store.redis.RedisConstants.REDIS_TIMEOUT_CONF;
 import static org.helios.pag.store.redis.RedisConstants.REDIS_TIME_BETWEEN_EVICTION_RUNS_CONF;
 
-import org.apache.commons.pool2.PooledObject;
-import org.apache.commons.pool2.PooledObjectFactory;
-import org.apache.commons.pool2.impl.DefaultPooledObject;
+import java.util.Collection;
+import java.util.Collections;
+
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.helios.pag.RindleService;
 import org.helios.pag.util.ConfigurationHelper;
 import org.helios.pag.util.StringHelper;
-
-import redis.clients.jedis.BinaryJedis;
-import redis.clients.util.Pool;
 
 import com.google.common.util.concurrent.AbstractService;
 
@@ -91,7 +89,7 @@ import com.google.common.util.concurrent.AbstractService;
  * <p><code>org.helios.pag.store.redis.RedisConnectionPool</code></p>
  */
 
-public class RedisConnectionPool extends AbstractService implements PooledObjectFactory<BinaryJedis> {
+public class RedisConnectionPool extends AbstractService implements RindleService {
 	/** The redis connection pool configuration */
 	protected final GenericObjectPoolConfig  poolConfig = new GenericObjectPoolConfig ();
 	
@@ -113,7 +111,7 @@ public class RedisConnectionPool extends AbstractService implements PooledObject
 	protected final String clientName;
 	
 	/** The jedis connection pool */
-	protected Pool<BinaryJedis> pool = null;
+	protected ExtendedJedisPool pool = null;
 
 	/**
 	 * Creates a new RedisConnectionPool
@@ -140,8 +138,7 @@ public class RedisConnectionPool extends AbstractService implements PooledObject
 		poolConfig.setSoftMinEvictableIdleTimeMillis(ConfigurationHelper.getLongSystemThenEnvProperty(REDIS_SOFT_MIN_EVICTABLE_IDLE_TIME_CONF, DEFAULT_REDIS_SOFT_MIN_EVICTABLE_IDLE_TIME));
 		poolConfig.setNumTestsPerEvictionRun(ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_NUM_TESTS_PER_EVICTION_RUN_CONF, DEFAULT_REDIS_NUM_TESTS_PER_EVICTION_RUN));
 		poolConfig.setTestOnBorrow(ConfigurationHelper.getBooleanSystemThenEnvProperty(REDIS_TEST_ON_BORROW_CONF, DEFAULT_REDIS_TEST_ON_BORROW));
-		poolConfig.setTestOnReturn(ConfigurationHelper.getBooleanSystemThenEnvProperty(REDIS_TEST_ON_RETURN_CONF, DEFAULT_REDIS_TEST_ON_RETURN));
-		
+		poolConfig.setTestOnReturn(ConfigurationHelper.getBooleanSystemThenEnvProperty(REDIS_TEST_ON_RETURN_CONF, DEFAULT_REDIS_TEST_ON_RETURN));		
 	}
 
 	/**
@@ -151,9 +148,40 @@ public class RedisConnectionPool extends AbstractService implements PooledObject
 	 */
 	@Override
 	protected void doStart() {
-		//pool = new JedisPool(poolConfig, redisHost, redisPort, timeout, redisAuth, redisDb, clientName);
-		pool = new BinaryJedisPool(poolConfig, this);
-		log.info(StringHelper.banner("Started Redis Connection Pool.\n\tHost:%s\n\tPort:%s", redisHost, redisPort));
+		try {
+			pool = new ExtendedJedisPool(poolConfig, redisHost, redisPort, timeout, redisAuth, redisDb, clientName);
+			log.info(StringHelper.banner("Started Redis Connection Pool.\n\tHost:%s\n\tPort:%s", redisHost, redisPort));
+			notifyStarted();
+		} catch (Exception ex) {
+			notifyFailed(ex);
+		}
+		
+	}
+	
+	/**
+	 * Returns a redis connection from the pool
+	 * @return a redis connection from the pool
+	 */
+	public ExtendedJedis getJedis() {
+		return pool.getResource();
+	}
+	
+	/**
+	 * Executes the passed task
+	 * @param task The task to execute with a redis connection
+	 * @return the return value of the task
+	 */
+	public <T> T redisTask(RedisTask<T> task) {
+		ExtendedJedis jedis = null;
+		try {
+			jedis = pool.getResource();
+			return task.redisTask(jedis);
+		} catch (Exception ex) {
+			log.error("Failed to execute redis task [{}]", task, ex);
+			throw new RuntimeException("Failed to execute redis task", ex);
+		} finally {
+			if(jedis!=null) try { jedis.close(); } catch (Exception x) {/* No Op */}
+		}				
 	}
 
 	/**
@@ -166,81 +194,18 @@ public class RedisConnectionPool extends AbstractService implements PooledObject
 		if(pool!=null) {
 			log.info("Stopping Redis Connection Pool....");
 			pool.destroy();
-			log.info("Redis Connection Pool Stopped");
+			log.info("Redis Connection Pool Stopped");			
 		}
 	}
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.apache.commons.pool2.PooledObjectFactory#makeObject()
+	 * @see org.helios.pag.RindleService#getDependentServices()
 	 */
 	@Override
-	public PooledObject<BinaryJedis> makeObject() throws Exception {		
-		BinaryJedis binJed = new BinaryJedis(redisHost, redisPort, timeout);
-		binJed.clientSetname(clientName.getBytes());		
-		binJed.connect();
-		binJed.select(redisDb);
-		return new DefaultPooledObject<BinaryJedis>(binJed);
+	public Collection<RindleService> getDependentServices() {
+		return Collections.emptyList();
 	}
 
-	/**
-	 * {@inheritDoc}
-	 * @see org.apache.commons.pool2.PooledObjectFactory#destroyObject(org.apache.commons.pool2.PooledObject)
-	 */
-	@Override
-	public void destroyObject(PooledObject<BinaryJedis> pooledObject) throws Exception {
-		BinaryJedis binJed = pooledObject.getObject();
-		binJed.close();
-		binJed = null;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see org.apache.commons.pool2.PooledObjectFactory#validateObject(org.apache.commons.pool2.PooledObject)
-	 */
-	@Override
-	public boolean validateObject(PooledObject<BinaryJedis> pooledObject) {
-		BinaryJedis binJed = pooledObject.getObject();
-		try {
-			binJed.getDB();
-			return true;
-		} catch (Exception ex) {
-			return false;
-		}
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see org.apache.commons.pool2.PooledObjectFactory#activateObject(org.apache.commons.pool2.PooledObject)
-	 */
-	@Override
-	public void activateObject(PooledObject<BinaryJedis> p) throws Exception {
-		// TODO Auto-generated method stub
-		
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see org.apache.commons.pool2.PooledObjectFactory#passivateObject(org.apache.commons.pool2.PooledObject)
-	 */
-	@Override
-	public void passivateObject(PooledObject<BinaryJedis> p) throws Exception {
-		// TODO Auto-generated method stub
-		
-	}
-	
-	class BinaryJedisPool extends Pool<BinaryJedis> {
-
-		/**
-		 * Creates a new BinaryJedisPool
-		 * @param poolConfig
-		 * @param factory
-		 */
-		public BinaryJedisPool(GenericObjectPoolConfig poolConfig,
-				PooledObjectFactory<BinaryJedis> factory) {
-			super(poolConfig, factory);
-		}
-		
-	}
 	
 }

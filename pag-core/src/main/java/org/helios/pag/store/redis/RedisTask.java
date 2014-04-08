@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2014, Helios Development Group and individual contributors
+ * Copyright 2007, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,18 +22,23 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
-
-import org.helios.pag.RindleService;
+package org.helios.pag.store.redis;
 
 /**
- * <p>Title: IStore</p>
- * <p>Description: Defines a Rindle metric dictionary store</p> 
+ * <p>Title: RedisTask</p>
+ * <p>Description: A Callable like task definition, passed a Jedis connection to execute with</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.IStore</code></p>
+ * <p><code>org.helios.pag.store.redis.RedisTask</code></p>
+ * @param <T> The assumed return value type of the task
  */
 
-public interface IStore extends RindleService {
-
+public interface RedisTask<T> {
+	/**
+	 * Executes this task in a guarded redis connection
+	 * @param jedis the redis connection which will be closed on completion of this task
+	 * @return the return value of the task
+	 * @throws Exception thrown on task execution errors
+	 */
+	public T redisTask(ExtendedJedis jedis) throws Exception;
 }

@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2014, Helios Development Group and individual contributors
+ * Copyright 2007, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,18 +22,42 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
-
-import org.helios.pag.RindleService;
+package redis.clients.nedis.netty;
 
 /**
- * <p>Title: IStore</p>
- * <p>Description: Defines a Rindle metric dictionary store</p> 
+ * <p>Title: ProtocolByte</p>
+ * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.IStore</code></p>
+ * <p><code>redis.clients.nedis.netty.ProtocolByte</code></p>
  */
 
-public interface IStore extends RindleService {
+public enum ProtocolByte implements CR {
+    /** The protocol byte prefixing the number of bytes in the next line */
+    DOLLAR_BYTE((byte)'$'),
+    /** The protocol byte prefixing the number of arguments to follow */
+    ASTERISK_BYTE((byte)'*'),
+    /** The protocol byte prefixing the single line status reply */
+    PLUS_BYTE((byte)'+'),
+    /** The protocol byte prefixing the single line error status */
+    MINUS_BYTE((byte)'-'),
+    /** The protocol byte prefixing the single integer reply */
+    COLON_BYTE((byte)':');
+    
+
+    private ProtocolByte(byte b) {
+    	this.b = b;
+    }
+    
+    private final byte b;
+
+	/**
+	 * Returns the byte 
+	 * @return the byte
+	 */
+	public byte getByte() {
+		return b;
+	}
+
 
 }

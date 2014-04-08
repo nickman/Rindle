@@ -24,15 +24,22 @@
  */
 package org.helios.pag.control;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.helios.pag.Constants;
+import org.helios.pag.RindleService;
 import org.helios.pag.store.IStore;
 import org.helios.pag.util.ConfigurationHelper;
 import org.helios.pag.util.StringHelper;
 import org.helios.pag.util.jmx.concurrency.JMXManagedThreadPool;
 
 import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.ServiceManager;
 
 /**
  * <p>Title: RindleMain</p>
@@ -42,7 +49,7 @@ import com.google.common.util.concurrent.AbstractService;
  * <p><code>org.helios.pag.control.RindleMain</code></p>
  */
 
-public class RindleMain extends AbstractService {
+public class RindleMain extends AbstractService implements RindleService {
 	/** Static class logger */
 	protected static final Logger LOG = LogManager.getLogger(RindleMain.class);
 	/** Singleton instance */
@@ -54,8 +61,13 @@ public class RindleMain extends AbstractService {
 	/** The rindle registry */
 	protected Registry registry;
 	/** The rindle istore */
-	protected IStore istore;
+	protected IStore istore = createIStore();
+	/** The rindle service manager */
+	protected ServiceManager serviceManager;
 	
+	/** The rindle services */
+	protected final Set<RindleService> rindleServices = new CopyOnWriteArraySet<RindleService>();
+
 	/**
 	 * Acquires the RindleMain singleton instance
 	 * @return the RindleMain singleton instance
@@ -65,7 +77,10 @@ public class RindleMain extends AbstractService {
 			synchronized(lock) {
 				if(instance==null) {
 					instance = new RindleMain();
-					instance.start();
+					LOG.info("Rindle Services Starting......");
+					instance.serviceManager.startAsync();
+					instance.serviceManager.awaitHealthy();
+					LOG.info("********************************");
 				}
 			}
 		}
@@ -79,8 +94,12 @@ public class RindleMain extends AbstractService {
 		LOG.info("Rindle Core Starting......");
 		threadPool = new JMXManagedThreadPool("main");
 		registry = Registry.getInstance();
-		LOG.info("Rindle Core Started.");
 		
+		LOG.info("Rindle Core Started.");
+		addRindleService(this);
+		addRindleService(istore);
+		LOG.info("Rindle Services to Start: {}", rindleServices.size());
+		serviceManager = new ServiceManager(rindleServices);
 	}
 
 	public static void main(String[] args) {
@@ -119,7 +138,16 @@ public class RindleMain extends AbstractService {
 	 */
 	@Override
 	protected void doStart() {
-		LOG.info("Rindle Services Starting......");
+		LOG.info("RINDLE BOOTED");
+		notifyStarted();
+	}
+	
+	
+	/**
+	 * Creates an IStore instance
+	 * @return the created IStore instance
+	 */
+	protected static IStore createIStore() {
 		String istoreClassName = ConfigurationHelper.getSystemThenEnvProperty(Constants.ISTORE_CLASS_NAME, Constants.DEFAULT_ISTORE_CLASS_NAME);
 		try {
 			Class<?> clazz = Class.forName(istoreClassName);
@@ -128,17 +156,10 @@ public class RindleMain extends AbstractService {
 			}
 			@SuppressWarnings("unchecked")
 			Class<IStore> iclazz = (Class<IStore>)clazz;
-			istore = iclazz.newInstance();			
-			istore.start().addListener(new Runnable(){
-				public void run() {
-					try { Thread.currentThread().join(100); } catch (Exception ex) {/* No Op */}
-					LOG.info(StringHelper.banner("Rindle Started"));
-				}
-			}, threadPool);
-			LOG.info("Rindle Services Started");	
+			return iclazz.newInstance();				
 		} catch (Exception ex) {
-			LOG.error("Failed to create IStore: {}", istoreClassName, ex);
-			throw new RuntimeException("IStore Creation Failure", ex);
+			LOG.error("Failed to create IStore instance", ex);
+			throw new RuntimeException("Failed to create IStore instance", ex);
 		}
 	}
 
@@ -150,5 +171,39 @@ public class RindleMain extends AbstractService {
 	protected void doStop() {
 
 		
+	}
+	
+	/**
+	 * Recursively adds a tree of dependent rindle services
+	 * @param services a collection of rindle services to add
+	 */
+	protected void addRindleServices(Collection<RindleService> services) {
+		for(RindleService svc: services) {
+			if(svc==null) continue;			
+			if(!rindleServices.contains(svc)) {
+				LOG.info("===========  Adding: {}", svc.getClass().getSimpleName());
+				rindleServices.add(svc);
+				addRindleServices(svc.getDependentServices());
+			}
+		}
+	}
+	
+	/**
+	 * Adds a rindle service
+	 * @param service The service to add
+	 */
+	protected void addRindleService(RindleService service) {
+		if(service!=null) {
+			addRindleServices(Collections.singleton(service));
+		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.RindleService#getDependentServices()
+	 */
+	@Override
+	public Collection<RindleService> getDependentServices() {
+		return rindleServices;
 	}
 }

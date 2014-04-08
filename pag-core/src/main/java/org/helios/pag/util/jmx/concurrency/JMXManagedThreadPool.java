@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -48,6 +49,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.helios.pag.util.ConfigurationHelper;
 import org.helios.pag.util.JMXHelper;
+
 import static org.helios.pag.Constants.*;
 
 /**
@@ -306,6 +308,37 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 	@Override
 	public long getExecutingTaskCount() {
 		return getTaskCount()-getCompletedTaskCount();
+	}
+	
+	public void execute(Runnable r) {
+		super.execute(r);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see java.util.concurrent.AbstractExecutorService#submit(java.lang.Runnable)
+	 */
+	@Override
+	public Future<?> submit(Runnable task) {
+		return super.submit(task);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see java.util.concurrent.AbstractExecutorService#submit(java.lang.Runnable, java.lang.Object)
+	 */
+	@Override
+	public <T> Future<T> submit(Runnable task, T result) {		
+		return super.submit(task, result);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see java.util.concurrent.AbstractExecutorService#submit(java.util.concurrent.Callable)
+	 */
+	@Override
+	public <T> Future<T> submit(Callable<T> task) {
+		return super.submit(task);
 	}
 
 	/**

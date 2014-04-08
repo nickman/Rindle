@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2014, Helios Development Group and individual contributors
+ * Copyright 2007, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,18 +22,25 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.pag.store;
-
-import org.helios.pag.RindleService;
+package redis.clients.nedis.netty;
 
 /**
- * <p>Title: IStore</p>
- * <p>Description: Defines a Rindle metric dictionary store</p> 
+ * <p>Title: CR</p>
+ * <p>Description: Redis protocol CR</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.store.IStore</code></p>
+ * <p><code>redis.clients.nedis.netty.CR</code></p>
  */
-
-public interface IStore extends RindleService {
+public interface CR {
+	/** The CR String */
+	public static final String CR = "\r\n";
+    /** The byte sequence of a CR */
+    public static byte[] CR_BYTES = "\r\n".getBytes();
+    /** The length of the CR byte sequence */
+    public static final int CR_LENGTH = CR_BYTES.length;
+    /** The first byte */
+    public static final byte BYTE1 = '\r';
+    /** The second byte */
+    public static final byte BYTE2 = '\n';
 
 }

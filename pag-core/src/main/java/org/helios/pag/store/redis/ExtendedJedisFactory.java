@@ -30,6 +30,7 @@ import org.apache.commons.pool2.impl.DefaultPooledObject;
 
 import redis.clients.jedis.BinaryJedis;
 import redis.clients.jedis.Jedis;
+import redis.clients.util.Pool;
 
 
 /**
@@ -40,94 +41,124 @@ import redis.clients.jedis.Jedis;
  * <p><code>org.helios.pag.store.redis.ExtendedJedisFactory</code></p>
  */
 
-public class ExtendedJedisFactory implements PooledObjectFactory<Jedis> {
+public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> {
+    /** The redis host */
     private final String host;
+    /** The redis port */
     private final int port;
+    /** The redis connection timeout */
     private final int timeout;
+    /** The redis password */
     private final String password;
+    /** The redis database id to default to */
     private final int database;
+    /** The redis client name */
     private final String clientName;
+    /** The pool this factory is creating connections for */
+    private Pool<ExtendedJedis> pool;
 	
     /**
      * Creates a new ExtendedJedisFactory
-     * @param host
-     * @param port
-     * @param timeout
-     * @param password
-     * @param database
-     * @param clientName
+	 * @param host The redis host or ip address
+	 * @param port The redis listening port
+	 * @param timeout The redis connection timeout in s.
+	 * @param password The redis password
+	 * @param database The redis DB to default to
+	 * @param clientName The client name
      */
     public ExtendedJedisFactory(final String host, final int port, final int timeout,
     	    final String password, final int database, final String clientName) {
     	super();
-
     	this.host = host;
     	this.port = port;
     	this.timeout = timeout;
     	this.password = password;
     	this.database = database;
     	this.clientName = clientName;
-        }
+     }
+    
+    /**
+     * Sets the pool this factory is creating connections for
+     * @param pool the factory pool
+     */
+    void setPool(Pool<ExtendedJedis> pool) {
+    	this.pool = pool;
+    }
 	
 
-    @Override
-    public void activateObject(PooledObject<Jedis> pooledJedis)
-	    throws Exception {
-	final BinaryJedis jedis = pooledJedis.getObject();
-	if (jedis.getDB() != database) {
-	    jedis.select(database);
-	}
+    /**
+     * {@inheritDoc}
+     * @see org.apache.commons.pool2.PooledObjectFactory#activateObject(org.apache.commons.pool2.PooledObject)
+     */
+    @SuppressWarnings("resource")
+	@Override
+    public void activateObject(PooledObject<ExtendedJedis> pooledJedis)
+    		throws Exception {
+    	final BinaryJedis jedis = pooledJedis.getObject();
+    	if (jedis.getDB() != database) {
+    		jedis.select(database);
+    	}
 
     }
 
-    @Override
-    public void destroyObject(PooledObject<Jedis> pooledJedis) throws Exception {
-	final BinaryJedis jedis = pooledJedis.getObject();
-	if (jedis.isConnected()) {
-	    try {
-		try {
-		    jedis.quit();
-		} catch (Exception e) {
-		}
-		jedis.disconnect();
-	    } catch (Exception e) {
-
-	    }
-	}
+    /**
+     * {@inheritDoc}
+     * @see org.apache.commons.pool2.PooledObjectFactory#destroyObject(org.apache.commons.pool2.PooledObject)
+     */
+    @SuppressWarnings("resource")
+	@Override
+    public void destroyObject(PooledObject<ExtendedJedis> pooledJedis) throws Exception {
+    	final ExtendedJedis jedis = pooledJedis.getObject();
+    	if(jedis!=null) {
+    		jedis.realClose();
+    	}
 
     }
 
-    @Override
-    public PooledObject<Jedis> makeObject() throws Exception {
-	final Jedis jedis = new Jedis(this.host, this.port, this.timeout);
+    /**
+     * {@inheritDoc}
+     * @see org.apache.commons.pool2.PooledObjectFactory#makeObject()
+     */
+    @SuppressWarnings("resource")
+	@Override
+    public PooledObject<ExtendedJedis> makeObject() throws Exception {
+    	final ExtendedJedis jedis = new ExtendedJedis(this.host, this.port, this.timeout, pool);
 
-	jedis.connect();
-	if (null != this.password) {
-	    jedis.auth(this.password);
-	}
-	if (database != 0) {
-	    jedis.select(database);
-	}
-	if (clientName != null) {
-	    jedis.clientSetname(clientName);
-	}
+    	jedis.connect();
+    	if (null != this.password) {
+    		jedis.auth(this.password);
+    	}
+    	if (database != 0) {
+    		jedis.select(database);
+    	}
+    	if (clientName != null) {
+    		jedis.clientSetname(clientName.getBytes());
+    	}
 
-	return new DefaultPooledObject<Jedis>(jedis);
+    	return new DefaultPooledObject<ExtendedJedis>(jedis);
     }
 
+    /**
+     * {@inheritDoc}
+     * @see org.apache.commons.pool2.PooledObjectFactory#passivateObject(org.apache.commons.pool2.PooledObject)
+     */
     @Override
-    public void passivateObject(PooledObject<Jedis> pooledJedis)
-	    throws Exception {
-	// TODO maybe should select db 0? Not sure right now.
+    public void passivateObject(PooledObject<ExtendedJedis> pooledJedis) throws Exception {
+    	// TODO maybe should select db 0? Not sure right now.
     }
 
-    @Override
-    public boolean validateObject(PooledObject<Jedis> pooledJedis) {
-	final BinaryJedis jedis = pooledJedis.getObject();
-	try {
-	    return jedis.isConnected() && jedis.ping().equals("PONG");
-	} catch (final Exception e) {
-	    return false;
-	}
+    /**
+     * {@inheritDoc}
+     * @see org.apache.commons.pool2.PooledObjectFactory#validateObject(org.apache.commons.pool2.PooledObject)
+     */
+    @SuppressWarnings("resource")
+	@Override
+    public boolean validateObject(PooledObject<ExtendedJedis> pooledJedis) {
+    	final BinaryJedis jedis = pooledJedis.getObject();
+    	try {
+    		return jedis.isConnected() && jedis.ping().equals("PONG");
+    	} catch (final Exception e) {
+    		return false;
+    	}
     }
 }
