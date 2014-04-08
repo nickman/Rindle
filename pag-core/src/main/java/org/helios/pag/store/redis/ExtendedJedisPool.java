@@ -26,12 +26,11 @@ package org.helios.pag.store.redis;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
-import redis.clients.jedis.Jedis;
 import redis.clients.util.Pool;
 
 /**
  * <p>Title: ExtendedJedisPool</p>
- * <p>Description: </p> 
+ * <p>Description: A Jedis pool extended for some additional functionailty</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.pag.store.redis.ExtendedJedisPool</code></p>

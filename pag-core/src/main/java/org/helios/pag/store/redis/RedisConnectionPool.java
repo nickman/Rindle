@@ -150,7 +150,7 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 	protected void doStart() {
 		try {
 			pool = new ExtendedJedisPool(poolConfig, redisHost, redisPort, timeout, redisAuth, redisDb, clientName);
-			log.info(StringHelper.banner("Started Redis Connection Pool.\n\tHost:%s\n\tPort:%s", redisHost, redisPort));
+			log.info(StringHelper.banner("Started Redis Connection Pool.\n\tHost:%s\n\tPort:%s\n\tTimeout:%s", redisHost, redisPort, timeout));
 			notifyStarted();
 		} catch (Exception ex) {
 			notifyFailed(ex);

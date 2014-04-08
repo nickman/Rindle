@@ -120,7 +120,7 @@ public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements Pub
 		this.port = port;
 		this.auth = auth;
 		this.timeout = timeout;
-		subChannel = OptimizedPubSubFactory.getInstance(null).newChannelSynch(host, port, timeout);
+		subChannel = OptimizedPubSubFactory.getInstance().newChannelSynch(host, port, timeout);
 		subChannel.getPipeline().addLast("SubListener", this);
 		
 		connected.set(true);
@@ -219,7 +219,7 @@ public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements Pub
 			if(pubChannel==null) {
 				synchronized(this) {
 					if(pubChannel==null) {
-						pubChannel =  OptimizedPubSubFactory.getInstance(null).newChannelSynch(host, port, timeout);
+						pubChannel =  OptimizedPubSubFactory.getInstance().newChannelSynch(host, port, timeout);
 						pubChannel.getPipeline().addLast("PubListener", this);
 						pubQueue = QueueFactory.createQueue(MessageEvent.class);
 						pubBufferingHandler = new ConfirmingBufferedWriteHandler(pubQueue, false);
@@ -373,7 +373,7 @@ public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements Pub
 		if(pubChannel==null) {
 			synchronized(this) {
 				if(pubChannel==null) {
-					pubChannel =  OptimizedPubSubFactory.getInstance(null).newChannelSynch(host, port, timeout);
+					pubChannel =  OptimizedPubSubFactory.getInstance().newChannelSynch(host, port, timeout);
 					pubChannel.getPipeline().addLast("PubListener", this);
 				}
 			}

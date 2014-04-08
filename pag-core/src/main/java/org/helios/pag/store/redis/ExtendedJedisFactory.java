@@ -119,7 +119,7 @@ public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> 
      * {@inheritDoc}
      * @see org.apache.commons.pool2.PooledObjectFactory#makeObject()
      */
-    @SuppressWarnings("resource")
+
 	@Override
     public PooledObject<ExtendedJedis> makeObject() throws Exception {
     	final ExtendedJedis jedis = new ExtendedJedis(this.host, this.port, this.timeout, pool);

@@ -45,8 +45,6 @@ import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.handler.execution.ExecutionHandler;
-import org.jboss.netty.handler.logging.LoggingHandler;
-import org.jboss.netty.logging.InternalLogLevel;
 
 import redis.clients.nedis.netty.jmx.ThreadPoolMonitor;
 
@@ -102,14 +100,13 @@ public class OptimizedPubSubFactory {
 	
 	/**
 	 * Returns the OptimizedPubSubFactory singleton instance
-	 * @param socketOptions An optional map of socket options
 	 * @return the OptimizedPubSubFactory singleton instance
 	 */ 
-	public static OptimizedPubSubFactory getInstance(Map<String, Object> socketOptions) {
+	public static OptimizedPubSubFactory getInstance() {
 		if(instance==null) {
 			synchronized(lock) {
 				if(instance==null) {
-					instance = new OptimizedPubSubFactory(socketOptions);
+					instance = new OptimizedPubSubFactory();
 				}
 			}
 		}
@@ -119,9 +116,9 @@ public class OptimizedPubSubFactory {
 	
 	/**
 	 * Creates a new OptimizedPubSubFactory
-	 * @param socketOptions An optional map of socket options
 	 */
-	private OptimizedPubSubFactory(Map<String, Object> socketOptions) {
+	private OptimizedPubSubFactory() {
+		Map<String, Object> socketOptions = new HashMap<String, Object>();
 		ThreadFactory bossThreadFactory = new ThreadFactory(){
 			final AtomicInteger serial = new AtomicInteger(0);
 			final ThreadGroup threadGroup = new ThreadGroup("PubSubBossThreadGroup");
