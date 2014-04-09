@@ -36,6 +36,9 @@ import org.helios.pag.control.RindleMain;
 import org.helios.pag.store.IStore;
 import org.helios.pag.util.StringHelper;
 
+import redis.clients.nedis.netty.OptimizedPubSub;
+import redis.clients.nedis.netty.OptimizedPubSubFactory;
+
 import com.google.common.util.concurrent.AbstractService;
 
 /**
@@ -52,13 +55,11 @@ public class RedisStore extends AbstractService implements IStore {
 	/** The redis connection pool */
 	protected RedisConnectionPool connectionPool = new RedisConnectionPool();
 	
-	
-	
 	/**
 	 * Creates a new RedisStore
 	 */
 	public RedisStore() {
-		log.info("State: {}", state());
+		
 	}
 
 	public List<String> foo() {
@@ -78,6 +79,7 @@ public class RedisStore extends AbstractService implements IStore {
 	 */
 	@Override
 	protected void doStart() {
+		
 		final RedisStore service = this;						
 		connectionPool.addListener(new Listener() {
 			@Override

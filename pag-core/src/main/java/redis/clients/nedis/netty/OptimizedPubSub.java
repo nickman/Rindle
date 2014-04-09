@@ -25,6 +25,7 @@
 package redis.clients.nedis.netty;
 
 import java.io.Closeable;
+import java.lang.management.ManagementFactory;
 import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
@@ -107,6 +108,12 @@ public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements Pub
 	
 	
 	
+	/** The JVM runtime name */
+	public static final String RUNTIME_NAME = ManagementFactory.getRuntimeMXBean().getName();
+	
+	/** The default Redis connection client name  */
+	public static final String DEFAULT_REDIS_CLIENT_NAME = String.format("RindlePubSubListener:%s", RUNTIME_NAME);
+
 	
 	/**
 	 * Creates a new OptimizedPubSub
@@ -121,8 +128,8 @@ public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements Pub
 		this.auth = auth;
 		this.timeout = timeout;
 		subChannel = OptimizedPubSubFactory.getInstance().newChannelSynch(host, port, timeout);
-		subChannel.getPipeline().addLast("SubListener", this);
-		
+		subChannel.getPipeline().addLast("SubListener", this);		
+		clientName(DEFAULT_REDIS_CLIENT_NAME);
 		connected.set(true);
 		fireConnected();
 	}
@@ -355,6 +362,26 @@ public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements Pub
 	public ChannelFuture psubscribe(String... patterns) {
 		return subChannel.write(PubSubRequest.newRequest(PubSubCommand.PSUBSCRIBE, patterns));
 		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see redis.clients.nedis.netty.PubSub#clientList()
+	 */
+	@Override
+	public ChannelFuture clientList() {
+		return subChannel.write(PubSubRequest.newRequest(PubSubCommand.CLIENT, "LIST"));		
+	}
+	
+	
+	
+	/**
+	 * {@inheritDoc}
+	 * @see redis.clients.nedis.netty.PubSub#clientName(java.lang.String)
+	 */
+	@Override
+	public ChannelFuture clientName(String name) {		
+		return subChannel.write(PubSubRequest.newClientRequest(PubSubCommand.CLIENT, "SETNAME", name));
 	}
 
 	/**

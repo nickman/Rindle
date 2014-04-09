@@ -24,6 +24,8 @@
  */
 package org.helios.pag.store.redis;
 
+import java.lang.management.ManagementFactory;
+
 /**
  * <p>Title: RedisConstants</p>
  * <p>Description: Redis store configuration constants</p> 
@@ -53,16 +55,23 @@ public class RedisConstants {
 	/** The default configuration for the Redis connection pool's default database */
 	public static final int DEFAULT_REDIS_DB = 1;
 	
+	/** The JVM runtime name */
+	public static final String RUNTIME_NAME = ManagementFactory.getRuntimeMXBean().getName();
+	
 	/** The configuration property name for the Redis connection client name */
 	public static final String REDIS_CLIENT_NAME_CONF = "helios.pag.redis.clientname";
 	/** The default Redis connection client name  */
-	public static final String DEFAULT_REDIS_CLIENT_NAME = "Rindle";
+	public static final String DEFAULT_REDIS_CLIENT_NAME = String.format("Rindle:%s", RUNTIME_NAME);
 
 	/** The configuration property name for the Redis connection pool's connection timeout in s. */
 	public static final String REDIS_TIMEOUT_CONF = "helios.pag.redis.timeout";
 	/** The default configuration for the Redis connection pool's connection timeout in s. */
 	public static final int DEFAULT_REDIS_TIMEOUT = 15;
 	
+	/** The configuration property name for the Redis connection pool's monitoring period in sec. */
+	public static final String REDIS_POOL_MONITOR_PERIOD_CONF = "helios.pag.redis.pool.monitor.period";
+	/** The default Redis connection pool's monitoring period in sec. */
+	public static final int DEFAULT_REDIS_POOL_MONITOR_PERIOD = 5;
 	
 	//====================================================================================================	
 	

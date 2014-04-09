@@ -53,6 +53,21 @@ public interface PubSub {
 	 * @return A channelFuture for the completion of the operation
 	 */	
 	public ChannelFuture psubscribe(String...patterns);
+	
+	/**
+	 * Sets this client's name
+	 * @param name The client name
+	 * @return A channelFuture for the completion of the operation
+	 */
+	public ChannelFuture clientName(String name);
+	
+	/**
+	 * Retrieves the client connection list
+	 * @return A channelFuture for the completion of the operation
+	 */
+	public ChannelFuture clientList();
+	
+	
 	/**
 	 * Unsubscribes from the passed patterns
 	 * @param patterns The patterns to unsubscribe from

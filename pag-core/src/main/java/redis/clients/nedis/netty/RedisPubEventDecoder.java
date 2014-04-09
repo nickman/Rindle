@@ -30,6 +30,7 @@ import static redis.clients.nedis.netty.ProtocolByte.ASTERISK_BYTE;
 import static redis.clients.nedis.netty.ProtocolByte.COLON_BYTE;
 import static redis.clients.nedis.netty.ProtocolByte.DOLLAR_BYTE;
 import static redis.clients.nedis.netty.ProtocolByte.MINUS_BYTE;
+import static redis.clients.nedis.netty.ProtocolByte.PLUS_BYTE;
 import static redis.clients.nedis.netty.RedisPubEvent.ARG_COUNT;
 import static redis.clients.nedis.netty.RedisPubEvent.ERROR;
 import static redis.clients.nedis.netty.RedisPubEvent.NEXT_MESSAGE;
@@ -121,7 +122,7 @@ public class RedisPubEventDecoder<T> extends ReplayingDecoder<RedisPubEvent> {
 		cb.readBytes(bytes);
 		return bytes;
 	}
-
+	
 	/**
 	 * {@inheritDoc}
 	 * @see org.jboss.netty.handler.codec.replay.ReplayingDecoder#decode(org.jboss.netty.channel.ChannelHandlerContext, org.jboss.netty.channel.Channel, org.jboss.netty.buffer.ChannelBuffer, java.lang.Enum)
@@ -140,6 +141,17 @@ public class RedisPubEventDecoder<T> extends ReplayingDecoder<RedisPubEvent> {
 					return Integer.parseInt(new String(confirmBytes));
 				} else if(typeByte==MINUS_BYTE.getByte()) {
 					checkpoint(ERROR);
+				} else if(typeByte==PLUS_BYTE.getByte()) {
+					byte[] confirmBytes = readUntilCr(channelBuffer);
+					String msg = new String(confirmBytes);
+					if("OK".equals(msg)) {
+						return "OK";
+					} else  {
+						if(msg.startsWith("OK")) {
+							
+						}
+					}
+					checkpoint(TYPE);							
 				} else {
 					throw new Exception("Unexpected byte character [" + (char)typeByte + "] Expected [" + ASTERISK_BYTE + "]", new Throwable());
 				}

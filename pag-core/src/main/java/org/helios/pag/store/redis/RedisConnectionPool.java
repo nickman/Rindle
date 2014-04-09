@@ -39,6 +39,7 @@ import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_MAX_WAIT;
 import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_MIN_EVICTABLE_IDLE_TIME;
 import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_MIN_IDLE;
 import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_NUM_TESTS_PER_EVICTION_RUN;
+import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_POOL_MONITOR_PERIOD;
 import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_PORT;
 import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_SOFT_MIN_EVICTABLE_IDLE_TIME;
 import static org.helios.pag.store.redis.RedisConstants.DEFAULT_REDIS_TEST_ON_BORROW;
@@ -61,6 +62,7 @@ import static org.helios.pag.store.redis.RedisConstants.REDIS_MAX_WAIT_CONF;
 import static org.helios.pag.store.redis.RedisConstants.REDIS_MIN_EVICTABLE_IDLE_TIME_CONF;
 import static org.helios.pag.store.redis.RedisConstants.REDIS_MIN_IDLE_CONF;
 import static org.helios.pag.store.redis.RedisConstants.REDIS_NUM_TESTS_PER_EVICTION_RUN_CONF;
+import static org.helios.pag.store.redis.RedisConstants.REDIS_POOL_MONITOR_PERIOD_CONF;
 import static org.helios.pag.store.redis.RedisConstants.REDIS_PORT_CONF;
 import static org.helios.pag.store.redis.RedisConstants.REDIS_SOFT_MIN_EVICTABLE_IDLE_TIME_CONF;
 import static org.helios.pag.store.redis.RedisConstants.REDIS_TEST_ON_BORROW_CONF;
@@ -76,8 +78,12 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.helios.pag.RindleService;
+import org.helios.pag.control.FlushScheduler;
+import org.helios.pag.control.IFlushPeriodListener;
 import org.helios.pag.util.ConfigurationHelper;
 import org.helios.pag.util.StringHelper;
+
+import redis.clients.nedis.netty.OptimizedPubSub;
 
 import com.google.common.util.concurrent.AbstractService;
 
@@ -89,7 +95,7 @@ import com.google.common.util.concurrent.AbstractService;
  * <p><code>org.helios.pag.store.redis.RedisConnectionPool</code></p>
  */
 
-public class RedisConnectionPool extends AbstractService implements RindleService {
+public class RedisConnectionPool extends AbstractService implements RindleService, IFlushPeriodListener {
 	/** The redis connection pool configuration */
 	protected final GenericObjectPoolConfig  poolConfig = new GenericObjectPoolConfig ();
 	
@@ -104,15 +110,23 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 	protected final int redisDb;
 	/** The redis connection timeout in s. */
 	protected final int timeout;
+	/** The redis pool monitor period in s. */
+	protected int monitorPeriod;
 	
 	/** The redis authentication */
 	protected final String redisAuth;
 	/** The redis client name */
 	protected final String clientName;
+	/** Pool connection monitor connection */
+	protected ExtendedJedis monitorJedis = null;
 	
 	/** The jedis connection pool */
 	protected ExtendedJedisPool pool = null;
+	/** The pub/sub redis interface */
+	protected OptimizedPubSub pubSub;
+	
 
+	
 	/**
 	 * Creates a new RedisConnectionPool
 	 */
@@ -123,6 +137,7 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 		redisAuth = ConfigurationHelper.getSystemThenEnvProperty(REDIS_AUTH_CONF, DEFAULT_REDIS_AUTH);
 		clientName = ConfigurationHelper.getSystemThenEnvProperty(REDIS_CLIENT_NAME_CONF, DEFAULT_REDIS_CLIENT_NAME);
 		timeout = ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_TIMEOUT_CONF, DEFAULT_REDIS_TIMEOUT);
+		monitorPeriod = ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_POOL_MONITOR_PERIOD_CONF, DEFAULT_REDIS_POOL_MONITOR_PERIOD);
 		poolConfig.setMaxTotal(ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_MAX_TOTAL_CONF, DEFAULT_REDIS_MAX_TOTAL));
 		poolConfig.setMinIdle(ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_MIN_IDLE_CONF, DEFAULT_REDIS_MIN_IDLE));
 		poolConfig.setMaxIdle(ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_MAX_IDLE_CONF, DEFAULT_REDIS_MAX_IDLE));
@@ -151,6 +166,10 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 		try {
 			pool = new ExtendedJedisPool(poolConfig, redisHost, redisPort, timeout, redisAuth, redisDb, clientName);
 			log.info(StringHelper.banner("Started Redis Connection Pool.\n\tHost:%s\n\tPort:%s\n\tTimeout:%s", redisHost, redisPort, timeout));
+			pubSub = OptimizedPubSub.getInstance(redisHost, redisPort, redisAuth, timeout);
+			monitorJedis = new ExtendedJedis(redisHost, redisPort, timeout, null);
+			monitorJedis.clientSetname(RedisConstants.DEFAULT_REDIS_CLIENT_NAME.replace("Rindle", "RindlePoolMonitor").getBytes());
+			FlushScheduler.getInstance().registerListener(this);
 			notifyStarted();
 		} catch (Exception ex) {
 			notifyFailed(ex);
@@ -205,6 +224,24 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 	@Override
 	public Collection<RindleService> getDependentServices() {
 		return Collections.emptyList();
+	}
+
+	@Override
+	public void onPeriodFlush(int period) {
+		String clientList = monitorJedis.clientList();
+		log.info("==== Client Stats ====\n{}", clientList);
+		String[] client = clientList.split("\n");
+		
+	}
+
+	@Override
+	public int[] getPeriods() {		
+		return new int[] {monitorPeriod};
+	}
+
+	@Override
+	public void setAdjustedPeriods(int[] adjustedPeriods) {
+		monitorPeriod = adjustedPeriods[0];		
 	}
 
 	

@@ -42,14 +42,15 @@ public enum PubSubCommand implements CR {
 	/** The channel subscribe command */
 	SUBSCRIBE,
 	/** The channel unsubscribe command */
-	UNSUBSCRIBE;
-	
+	UNSUBSCRIBE,
+	/** The channel client command */
+	CLIENT;
 	
 	private PubSubCommand() {
-    	bytes = name().getBytes();
+    	bytes = name().replace("_", " ").getBytes();
     	byteCount = bytes.length;
     	fullBytes = new byte[byteCount + CR_LENGTH];
-    	System.arraycopy(name().getBytes(), 0, fullBytes, 0, byteCount);
+    	System.arraycopy(name().replace("_", " ").getBytes(), 0, fullBytes, 0, byteCount);
     	System.arraycopy(CR_BYTES, 0, fullBytes, byteCount, CR_LENGTH);
     	fullByteCount = fullBytes.length;    	
     	prefix = ("$" + name().length() + CR).getBytes();

@@ -65,6 +65,7 @@ public class RindleMain extends AbstractService implements RindleService {
 	/** The rindle service manager */
 	protected ServiceManager serviceManager;
 	
+	
 	/** The rindle services */
 	protected final Set<RindleService> rindleServices = new CopyOnWriteArraySet<RindleService>();
 

@@ -180,6 +180,7 @@ public class FlushScheduler implements ThreadFactory, UncaughtExceptionHandler {
 			for(int p: finalPeriods) {
 				listeners.get(p).add(listener);
 				listener.setAdjustedPeriods(finalPeriods);
+				activatePeriod(p);
 			}
 			if(stateAware!=null) {
 				for(int p: finalPeriods) {

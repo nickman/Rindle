@@ -56,8 +56,12 @@ public class ExtendedJedis extends BinaryJedis {
 	 * {@inheritDoc}
 	 * @see redis.clients.jedis.BinaryJedis#close()
 	 */
-	public void close() {		
-		pool.returnResource(this);
+	public void close() {
+		if(pool==null) {
+			realClose();
+		} else {
+			pool.returnResource(this);
+		}
 	}
 	
 	/**

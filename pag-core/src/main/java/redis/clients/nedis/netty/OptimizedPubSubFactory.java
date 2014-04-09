@@ -45,6 +45,8 @@ import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.handler.execution.ExecutionHandler;
+import org.jboss.netty.handler.logging.LoggingHandler;
+import org.jboss.netty.logging.InternalLogLevel;
 
 import redis.clients.nedis.netty.jmx.ThreadPoolMonitor;
 
@@ -146,7 +148,7 @@ public class OptimizedPubSubFactory {
 		pipelineFactory = new ChannelPipelineFactory() {
 			public ChannelPipeline getPipeline() throws Exception {				
 				ChannelPipeline pipeline = Channels.pipeline();
-				//pipeline.addLast(LOG_HANDLING_NAME, new LoggingHandler(InternalLogLevel.INFO, false));
+//				pipeline.addLast(LOG_HANDLING_NAME, new LoggingHandler(InternalLogLevel.INFO, true));
 				pipeline.addLast(MULTI_DECODER_NAME, new RedisPubEventDecoder<RedisPubEvent>());
 				pipeline.addLast(EXEC_HANDLER_NAME, wrappedExecHandler);
 				pipeline.addLast(REQ_ENCODER_NAME, new PubSubRequestEncoder());

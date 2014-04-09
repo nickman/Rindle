@@ -56,6 +56,15 @@ public class PubSubRequest {
 	}
 	
 	/**
+	 * @param command
+	 * @param arguments
+	 * @return
+	 */
+	public static PubSubRequest newClientRequest(PubSubCommand command, String...arguments) {
+		return new PubSubRequest(command, arguments);
+	}
+	
+	/**
 	 * Returns a new PubSubRequest
 	 * @param command The {@link PubSubCommand} to issue
 	 * @param arguments The arguments to the request
