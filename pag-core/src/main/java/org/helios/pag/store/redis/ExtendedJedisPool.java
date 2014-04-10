@@ -46,7 +46,7 @@ public class ExtendedJedisPool extends Pool<ExtendedJedis> {
 	 * @param timeout The redis connection timeout in s.
 	 * @param password The redis password
 	 * @param database The redis DB to default to
-	 * @param clientName The client name
+	 * @param clientName The client name prefix to which a serial number will be appended
 	 */
 	public ExtendedJedisPool(GenericObjectPoolConfig poolConfig, String host,
 			int port, int timeout, String password, int database,

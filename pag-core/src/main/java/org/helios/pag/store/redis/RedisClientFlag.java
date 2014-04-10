@@ -35,7 +35,7 @@ import java.util.Set;
  * <p><code>org.helios.pag.store.redis.RedisClientFlag</code></p>
  */
 
-public enum RedisClientFlag {
+public enum RedisClientFlag implements RedisClientStatValueParser {
 	/** The client is a slave in MONITOR mode */
 	O("The client is a slave in MONITOR mode", "Monitor"),
 	/** The client is a normal slave server */
@@ -101,4 +101,20 @@ public enum RedisClientFlag {
 	public final String description;
 	/** The flag short name */
 	public final String shortName;
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.redis.RedisClientStatValueParser#parseValue(java.lang.String)
+	 */
+	@Override
+	public Object parseValue(String value) {		
+		return PARSER.parseValue(value);
+	}
+	
+	/** Static reusable client flag value parser */
+	public static final RedisClientStatValueParser PARSER = new RedisClientStatValueParser() {
+		public Object parseValue(String value) {		
+			return decode(value.trim());
+		}		
+	};
 }

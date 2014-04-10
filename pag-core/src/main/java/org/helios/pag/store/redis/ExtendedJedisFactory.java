@@ -24,12 +24,13 @@
  */
 package org.helios.pag.store.redis;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.PooledObjectFactory;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
 
 import redis.clients.jedis.BinaryJedis;
-import redis.clients.jedis.Jedis;
 import redis.clients.util.Pool;
 
 
@@ -56,7 +57,8 @@ public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> 
     private final String clientName;
     /** The pool this factory is creating connections for */
     private Pool<ExtendedJedis> pool;
-	
+	/** The connection serial number factory */
+    private final AtomicLong connectionSerial = new AtomicLong();
     /**
      * Creates a new ExtendedJedisFactory
 	 * @param host The redis host or ip address
@@ -131,9 +133,7 @@ public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> 
     	if (database != 0) {
     		jedis.select(database);
     	}
-    	if (clientName != null) {
-    		jedis.clientSetname(clientName.getBytes());
-    	}
+   		jedis.clientSetname((clientName + "#" + connectionSerial.incrementAndGet()).getBytes());
 
     	return new DefaultPooledObject<ExtendedJedis>(jedis);
     }

@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
  * <p><code>org.helios.pag.store.redis.ClientInfo</code></p>
  */
 
-public class ClientInfo {
+public class ClientInfo implements ClientInfoMBean {
 	/** The client address/port */
 	protected String address = null;
 	/** The file descriptor corresponding to the socket */
@@ -67,6 +67,13 @@ public class ClientInfo {
 	protected RedisClientFDEvent[] fdEvents = new RedisClientFDEvent[0];
 	/** The Last command executed for this client */
 	protected String lastCommand;
+	/** The name assigned to this client */
+	protected String name;
+	
+	// ID Key:  <address> + fd
+	// split address:  <X>:port  (what do we call X ?)
+	// touch flag, so we can keep track of "gone" connections
+	// create new, update with ClientStat
 	
 	/** Single space splitter expression */
 	protected static final Pattern SPACE_SPLITTER = Pattern.compile(" ");
@@ -134,27 +141,189 @@ public class ClientInfo {
 				break;
 			default:
 				break;
-			
 			}
 		}
-//		addr=10.12.114.37:55158 
-//		fd=6 
-//		name=Rindle 
-//		age=0 
-//		idle=0 
-//		flags=N 
-//		db=1 
-//		sub=0 
-//		psub=0 
-//		multi=-1 
-//		qbuf=0 
-//		qbuf-free=32768 
-//		obl=0 
-//		oll=0 
-//		omem=0 
-//		events=r 
-//		cmd=client
-				
+	}
+
+
+	/**
+	 * Returns the client local address
+	 * @return the address
+	 */
+	public String getAddress() {
+		return address;
+	}
+
+
+	/**
+	 * Returns the file descriptor 
+	 * @return the fileDescriptor
+	 */
+	public long getFileDescriptor() {
+		return fileDescriptor;
+	}
+
+
+	/**
+	 * Returns the age of the client in seconds
+	 * @return the age
+	 */
+	public int getAge() {
+		return age;
+	}
+
+
+	/**
+	 * Returns the client idle time in seconds
+	 * @return the idle
+	 */
+	public int getIdle() {
+		return idle;
+	}
+
+
+	/**
+	 * Returns the client status flags
+	 * @return the clientFlags
+	 */
+	public RedisClientFlag[] getClientFlags() {
+		return clientFlags;
+	}
+	
+	/**
+	 * Returns the client status flag names
+	 * @return the clientFlags
+	 */
+	public String[] getClientFlagNames() {
+		RedisClientFlag[] flags = getClientFlags();
+		String[] flagNames = new String[flags.length];
+		for(int i = 0; i < flags.length; i++) {
+			flagNames[i] = flags[i].name();
+		}
+		return flagNames;
+	}
+
+
+
+	/**
+	 * Returns the connected DB id
+	 * @return the database
+	 */
+	public int getDatabase() {
+		return database;
+	}
+
+
+	/**
+	 * Returns the number of subscriptions
+	 * @return the subCount
+	 */
+	public int getSubCount() {
+		return subCount;
+	}
+
+
+	/**
+	 * Returns the number of pattern subscriptions
+	 * @return the psubCount
+	 */
+	public int getPsubCount() {
+		return psubCount;
+	}
+
+
+	/**
+	 * Returns number of pending multicount ops
+	 * @return the multiCount
+	 */
+	public int getMultiCount() {
+		return multiCount;
+	}
+
+
+	/**
+	 * Returns the query buffer length in bytes
+	 * @return the queryBufferLength
+	 */
+	public int getQueryBufferLength() {
+		return queryBufferLength;
+	}
+
+
+	/**
+	 * Returns the query buffer free space in bytes
+	 * @return the queryBufferFree
+	 */
+	public int getQueryBufferFree() {
+		return queryBufferFree;
+	}
+
+
+	/**
+	 * Returns the output buffer length in bytes
+	 * @return the outputBufferLength
+	 */
+	public int getOutputBufferLength() {
+		return outputBufferLength;
+	}
+
+
+	/**
+	 * Returns the output list length where replies are queued when the buffer is full
+	 * @return the outputListLength
+	 */
+	public int getOutputListLength() {
+		return outputListLength;
+	}
+
+
+	/**
+	 * Returns the output buffer memory usage in bytes 
+	 * @return the outputBufferMemUsage
+	 */
+	public int getOutputBufferMemUsage() {
+		return outputBufferMemUsage;
+	}
+
+
+	/**
+	 * Returns file descriptor events
+	 * @return the fdEvents
+	 */
+	public RedisClientFDEvent[] getFdEvents() {
+		return fdEvents;
+	}
+	
+	/**
+	 * Returns the file descriptor event names
+	 * @return the fdEvents
+	 */
+	public String[] getFdEventNames() {
+		RedisClientFDEvent[] events = getFdEvents();
+		String[] eventNames = new String[events.length];
+		for(int i = 0; i < events.length; i++) {
+			eventNames[i] = events[i].name();
+		}
+		return eventNames;		
+	}
+	
+
+
+	/**
+	 * Returns this client's last command
+	 * @return the lastCommand
+	 */
+	public String getLastCommand() {
+		return lastCommand;
+	}
+
+
+	/**
+	 * Returns the assigned client name
+	 * @return the name
+	 */
+	public String getName() {
+		return name;
 	}
 
 }

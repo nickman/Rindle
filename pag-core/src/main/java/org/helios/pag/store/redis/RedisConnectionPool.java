@@ -73,6 +73,7 @@ import static org.helios.pag.store.redis.RedisConstants.REDIS_TIME_BETWEEN_EVICT
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.logging.log4j.LogManager;
@@ -230,7 +231,14 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 	public void onPeriodFlush(int period) {
 		String clientList = monitorJedis.clientList();
 		log.info("==== Client Stats ====\n{}", clientList);
-		String[] client = clientList.split("\n");
+		Map<String, Map<RedisClientStat, Object>> statsMap = RedisClientStat.parseClientInfo(clientList);
+		for(Map.Entry<String, Map<RedisClientStat, Object>> clientEntry: statsMap.entrySet()) {
+			StringBuilder b = new StringBuilder("Client Stats [").append(clientEntry.getKey()).append("]:");
+			for(Map.Entry<RedisClientStat, Object> entry: clientEntry.getValue().entrySet()) {
+				b.append("\n\t").append(entry.getKey()).append(":").append(entry.getValue());
+			}
+			log.info("\n {}", b.toString());
+		}
 		
 	}
 

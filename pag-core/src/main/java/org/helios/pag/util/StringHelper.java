@@ -97,7 +97,7 @@ public class StringHelper {
 	}
 	
 	
-	   /**
+	/**
      * Returns the descriptor corresponding to the given method.
      * @param m a {@link Method Method} object.
      * @return the descriptor of the given method.

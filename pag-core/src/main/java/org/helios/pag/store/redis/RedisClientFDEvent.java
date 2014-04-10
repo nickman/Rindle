@@ -35,7 +35,7 @@ import java.util.Set;
  * <p><code>org.helios.pag.store.redis.RedisClientFDEvent</code></p>
  */
 
-public enum RedisClientFDEvent {
+public enum RedisClientFDEvent implements RedisClientStatValueParser {
 	/** The client socket is readable (event loop) */
 	R("Client socket is readable", "Readable"),
 	/** The client socket is writable (event loop) */
@@ -84,6 +84,21 @@ public enum RedisClientFDEvent {
 		return b.toString();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.redis.RedisClientStatValueParser#parseValue(java.lang.String)
+	 */
+	@Override
+	public Object parseValue(String value) {		
+		return PARSER.parseValue(value);
+	}
+	
+	/** Static reusable client flag value parser */
+	public static final RedisClientStatValueParser PARSER = new RedisClientStatValueParser() {
+		public Object parseValue(String value) {		
+			return decode(value.trim());
+		}		
+	};
 	
 	
 }
