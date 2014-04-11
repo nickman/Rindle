@@ -66,7 +66,7 @@ public interface ClientInfoMBean {
 	 * Returns the client status flag names
 	 * @return the clientFlags
 	 */
-	public String[] getClientFlagNames();
+	public String getClientFlagNames();
 
 
 	/**
@@ -136,7 +136,7 @@ public interface ClientInfoMBean {
 	 * Returns the file descriptor event names
 	 * @return the fdEvents
 	 */
-	public String[] getFdEventNames();
+	public String getFdEventNames();
 
 
 	/**

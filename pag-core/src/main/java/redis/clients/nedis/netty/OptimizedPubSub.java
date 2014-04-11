@@ -26,12 +26,17 @@ package redis.clients.nedis.netty;
 
 import java.io.Closeable;
 import java.lang.management.ManagementFactory;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.helios.pag.control.RindleMain;
+import org.helios.pag.store.redis.ClientInfo;
+import org.helios.pag.store.redis.ClientInfoProvider;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
@@ -47,13 +52,15 @@ import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
  * <p><code>redis.clients.nedis.netty.OptimizedPubSub</code></p>
  */
 
-public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements PubSub, Closeable, ChannelFutureListener {
+public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements PubSub, Closeable, ChannelFutureListener, ClientInfoProvider {
 	/** The redis host or IP Address */
 	protected final String host;
 	/** The redis listening port */
 	protected final int port;
 	/** The timeout in ms. */
 	protected final long timeout;
+	/** This connection's ClientInfo instance */
+	protected final ClientInfo clientInfo;
 	
 	/** The redis auth */
 	protected final String auth;
@@ -130,8 +137,27 @@ public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements Pub
 		subChannel = OptimizedPubSubFactory.getInstance().newChannelSynch(host, port, timeout);
 		subChannel.getPipeline().addLast("SubListener", this);		
 		clientName(DEFAULT_REDIS_CLIENT_NAME);
+		SocketAddress localAddress = subChannel.getLocalAddress();
+		String addressKey = null;
+		if(localAddress instanceof InetSocketAddress) {
+			InetSocketAddress localInet = (InetSocketAddress)localAddress;
+			addressKey = String.format("%s:%s", localInet.getAddress().getHostAddress(), localInet.getPort());
+		} else {
+			addressKey = localAddress.toString();
+		}		
+		clientInfo = new ClientInfo(DEFAULT_REDIS_CLIENT_NAME, addressKey);
+		
 		connected.set(true);
 		fireConnected();
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.redis.ClientInfoProvider#getClientInfo()
+	 */
+	@Override
+	public ClientInfo getClientInfo() {
+		return clientInfo;
 	}
 	
 	/**

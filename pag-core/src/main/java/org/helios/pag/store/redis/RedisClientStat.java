@@ -24,6 +24,7 @@
  */
 package org.helios.pag.store.redis;
 
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
@@ -73,6 +74,13 @@ public enum RedisClientStat implements RedisClientStatValueParser {
 	CMD("The last command played", "", STRING_PARSER),
 	/** The assigned client name */
 	NAME("The assigned client name", "", STRING_PARSER);
+
+	/** The key pattern for a client info line */
+	private static final String NAME_KEY = "name=";
+	/** The length of the key pattern for a client info line */
+	private static final int NAME_KEY_LENGTH = NAME_KEY.length();
+	/** The const default empty map */
+	private static final Map<RedisClientStat, Object> EMPTY_MAP = Collections.unmodifiableMap(new EnumMap<RedisClientStat, Object>(RedisClientStat.class));
 	
 
 	
@@ -90,42 +98,87 @@ public enum RedisClientStat implements RedisClientStatValueParser {
 	private final RedisClientStatValueParser parser;
 	
 	/** The client info string splitter */
-	private static final Pattern STAT_SPLITTER = Pattern.compile("(.*?=.*?\\s)");
+	private static final Pattern STAT_SPLITTER = Pattern.compile("(.*?=.*?(?:\\s|$))");
 	/** The platform EOL */
 	private static final String EOL = System.getProperty("line.separator", "\n");
 	/** Platform EOL splitter */
 	private static final Pattern EOL_SPLITTER = Pattern.compile(EOL);
 	
 	/**
-	 * Parses a client info string from redis into a map of of maps of stats keyed by the client local address
+	 * Parses a client info string from redis into a map of of maps of stats keyed by the client name
 	 * @param info The redis client info string
 	 * @return the stats map
 	 */
 	public static Map<String, Map<RedisClientStat, Object>> parseClientInfo(String info) {
 		Map<String, Map<RedisClientStat, Object>> map = new HashMap<String, Map<RedisClientStat, Object>>();
-		
 		if(info==null || info.trim().isEmpty()) return map;
 		String[] lines = EOL_SPLITTER.split(info.trim());
 		for(String line: lines) {
 			if(line==null || line.trim().isEmpty()) continue;
-			Map<RedisClientStat, Object> emap = new EnumMap<RedisClientStat, Object>(RedisClientStat.class);
-			Matcher m = STAT_SPLITTER.matcher(line.trim());
-			while(m.find()) {
-				String pair = m.group(1);
-				int index = pair.indexOf('=');
-				if(index==-1) continue;
-		        String name = pair.substring(0, index).trim().toUpperCase().replace('-', '_');
-		        String value = pair.substring(index+1).trim();
-		        try {
-		        	RedisClientStat rcs = RedisClientStat.valueOf(name);
-		        	emap.put(rcs, rcs.parseValue(value));
-		        } catch (Exception ex) {/* No Op */}		        
-			}
-			map.put((String) emap.get(ADDR), emap);			
+			Map<RedisClientStat, Object> emap = extract(line);
+			map.put((String) emap.get(NAME), emap);			
 		}
-		
 		return map;
-	} 
+	}
+	
+	
+	
+	
+	/**
+	 * Extracts the metrics client info text for the specified client name
+	 * @param name The client name
+	 * @param info the client info text to parse
+	 * @return a map of client info stats
+	 */
+	public static Map<RedisClientStat, Object> extract(String name, String info) {		
+		if(info==null || info.trim().isEmpty()) return EMPTY_MAP;
+		String[] lines = EOL_SPLITTER.split(info.trim());
+		for(String line: lines) {
+			if(line==null || line.trim().isEmpty()) continue;
+			if(isClientInfoLine(name, line)) {
+				return extract(line);
+			}
+		}
+		return EMPTY_MAP;
+	}
+	
+	
+	/**
+	 * Determines if the passed line has the name specified
+	 * @param name The client name we're looking for
+	 * @param line The line to test
+	 * @return true for a match, false otherwise
+	 */
+	public static boolean isClientInfoLine(String name, String line) {
+		int index = line.indexOf(NAME_KEY);
+		if(index==-1) return false;
+		String ename = line.substring(index + NAME_KEY_LENGTH, line.indexOf(' ', index));
+		return name.equals(ename);		
+	}
+	
+	
+	/**
+	 * Extracts the metrics from a single line of client info text
+	 * @param line the line of text to parse
+	 * @return a map of client info stats
+	 */
+	public static Map<RedisClientStat, Object> extract(String line) {		
+		if(line==null || line.trim().isEmpty()) return EMPTY_MAP;
+		Map<RedisClientStat, Object> map = new EnumMap<RedisClientStat, Object>(RedisClientStat.class);
+		Matcher m = STAT_SPLITTER.matcher(line.trim());
+		while(m.find()) {
+			String pair = m.group(1);
+			int index = pair.indexOf('=');
+			if(index==-1) continue;
+	        String name = pair.substring(0, index).trim().toUpperCase().replace('-', '_');
+	        String value = pair.substring(index+1).trim();
+	        try {
+	        	RedisClientStat rcs = RedisClientStat.valueOf(name);
+	        	map.put(rcs, rcs.parseValue(value));
+	        } catch (Exception ex) {/* No Op */}		        
+		}
+		return map;							
+	}
 	
 	/**
 	 * Decodes the passed stringy after trimming and uppercasing 

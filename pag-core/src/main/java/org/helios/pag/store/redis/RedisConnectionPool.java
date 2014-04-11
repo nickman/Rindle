@@ -74,6 +74,9 @@ import static org.helios.pag.store.redis.RedisConstants.REDIS_TIME_BETWEEN_EVICT
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import javax.management.ObjectName;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.logging.log4j.LogManager;
@@ -82,6 +85,7 @@ import org.helios.pag.RindleService;
 import org.helios.pag.control.FlushScheduler;
 import org.helios.pag.control.IFlushPeriodListener;
 import org.helios.pag.util.ConfigurationHelper;
+import org.helios.pag.util.JMXHelper;
 import org.helios.pag.util.StringHelper;
 
 import redis.clients.nedis.netty.OptimizedPubSub;
@@ -96,7 +100,7 @@ import com.google.common.util.concurrent.AbstractService;
  * <p><code>org.helios.pag.store.redis.RedisConnectionPool</code></p>
  */
 
-public class RedisConnectionPool extends AbstractService implements RindleService, IFlushPeriodListener {
+public class RedisConnectionPool extends AbstractService implements RindleService, IFlushPeriodListener, ExtendedJedisLifecycleListener {
 	/** The redis connection pool configuration */
 	protected final GenericObjectPoolConfig  poolConfig = new GenericObjectPoolConfig ();
 	
@@ -126,7 +130,8 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 	/** The pub/sub redis interface */
 	protected OptimizedPubSub pubSub;
 	
-
+	/** A map of this pool's connected extended jedis client info objects */
+	protected final Map<String, ClientInfo> infos = new ConcurrentHashMap<String, ClientInfo>(); 
 	
 	/**
 	 * Creates a new RedisConnectionPool
@@ -165,17 +170,17 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 	@Override
 	protected void doStart() {
 		try {
-			pool = new ExtendedJedisPool(poolConfig, redisHost, redisPort, timeout, redisAuth, redisDb, clientName);
+			pool = new ExtendedJedisPool(poolConfig, redisHost, redisPort, timeout, redisAuth, redisDb, clientName, this);
 			log.info(StringHelper.banner("Started Redis Connection Pool.\n\tHost:%s\n\tPort:%s\n\tTimeout:%s", redisHost, redisPort, timeout));
 			pubSub = OptimizedPubSub.getInstance(redisHost, redisPort, redisAuth, timeout);
-			monitorJedis = new ExtendedJedis(redisHost, redisPort, timeout, null);
-			monitorJedis.clientSetname(RedisConstants.DEFAULT_REDIS_CLIENT_NAME.replace("Rindle", "RindlePoolMonitor").getBytes());
+			monitorJedis = new ExtendedJedis(redisHost, redisPort, timeout, RedisConstants.DEFAULT_REDIS_CLIENT_NAME.replace("Rindle", "RindlePoolMonitor"), null);
+			registerClientInfo(pubSub);
+			onConnect(monitorJedis);
 			FlushScheduler.getInstance().registerListener(this);
 			notifyStarted();
 		} catch (Exception ex) {
 			notifyFailed(ex);
 		}
-		
 	}
 	
 	/**
@@ -230,15 +235,21 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 	@Override
 	public void onPeriodFlush(int period) {
 		String clientList = monitorJedis.clientList();
-		log.info("==== Client Stats ====\n{}", clientList);
+		//log.info("==== Client Stats ====\n{}", clientList);
 		Map<String, Map<RedisClientStat, Object>> statsMap = RedisClientStat.parseClientInfo(clientList);
 		for(Map.Entry<String, Map<RedisClientStat, Object>> clientEntry: statsMap.entrySet()) {
-			StringBuilder b = new StringBuilder("Client Stats [").append(clientEntry.getKey()).append("]:");
-			for(Map.Entry<RedisClientStat, Object> entry: clientEntry.getValue().entrySet()) {
-				b.append("\n\t").append(entry.getKey()).append(":").append(entry.getValue());
+			ClientInfo ci = infos.get(clientEntry.getKey());
+			if(ci!=null) {
+				ci.update(clientEntry.getValue());
 			}
-			log.info("\n {}", b.toString());
 		}
+//		for(Map.Entry<String, Map<RedisClientStat, Object>> clientEntry: statsMap.entrySet()) {
+//			StringBuilder b = new StringBuilder("Client Stats [").append(clientEntry.getKey()).append("]:");
+//			for(Map.Entry<RedisClientStat, Object> entry: clientEntry.getValue().entrySet()) {
+//				b.append("\n\t").append(entry.getKey()).append(":").append(entry.getValue());
+//			}
+//			log.info("\n {}", b.toString());
+//		}
 		
 	}
 
@@ -252,5 +263,46 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 		monitorPeriod = adjustedPeriods[0];		
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.redis.ExtendedJedisLifecycleListener#onConnect(org.helios.pag.store.redis.ExtendedJedis)
+	 */
+	@Override
+	public void onConnect(ExtendedJedis jedis) {
+		registerClientInfo(jedis);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.redis.ExtendedJedisLifecycleListener#onClose(org.helios.pag.store.redis.ExtendedJedis)
+	 */
+	@Override
+	public void onClose(ExtendedJedis jedis) {
+		removeClientInfo(jedis);
+	}
+	
+	/**
+	 * Registers the passed client info provider
+	 * @param cip the client info provider to register
+	 */
+	public void registerClientInfo(ClientInfoProvider cip) {
+		if(cip!=null) {
+			infos.put(cip.getClientInfo().getName(), cip.getClientInfo());
+			ObjectName on = JMXHelper.objectName("org.helios.rindle:type=PooledConnection,name=" + ObjectName.quote(cip.getClientInfo().getName()));
+			JMXHelper.registerMBean(cip.getClientInfo(), on);
+		}
+	}
+
+	/**
+	 * Unregisters the passed client info provider
+	 * @param cip the client info provider to unregister
+	 */
+	public void removeClientInfo(ClientInfoProvider cip) {
+		if(cip!=null) {
+			infos.remove(cip.getClientInfo().getName());
+			ObjectName on = JMXHelper.objectName("org.helios.rindle:type=PooledConnection,name=" + ObjectName.quote(cip.getClientInfo().getName()));
+			JMXHelper.unregisterMBean(on);
+		}
+	}
 	
 }

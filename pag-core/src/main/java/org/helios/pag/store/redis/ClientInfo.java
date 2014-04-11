@@ -24,6 +24,8 @@
  */
 package org.helios.pag.store.redis;
 
+import java.nio.charset.Charset;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -52,7 +54,7 @@ public class ClientInfo implements ClientInfoMBean {
 	/** The number of pattern matching subscriptions */
 	protected int psubCount = -1;
 	/** The number of commands in a MULTI/EXEC context */
-	protected int multiCount = -1;
+	protected int multiCount = 0;
 	/** The query buffer length (0 means no query pending) */
 	protected int queryBufferLength = -1;
 	/** The query buffer free space (0 means the buffer is full) */
@@ -80,6 +82,78 @@ public class ClientInfo implements ClientInfoMBean {
 	/** Equals splitter expression */
 	protected static final Pattern EQ_SPLITTER = Pattern.compile("=");
 	
+	/** The platform charset */
+	public static final Charset CHARSET  = Charset.defaultCharset();
+	
+	/**
+	 * Creates a new uninitialized ClientInfo
+	 * @param name The client name
+	 * @param addressKey The address key
+	 */
+	public ClientInfo(String name, String addressKey) {
+		this.name = name;
+		this.address = addressKey;
+	}
+	
+	/**
+	 * Updates this client info with the latest polled data
+	 * @param stats A map of redis client stats 
+	 */
+	public void update(Map<RedisClientStat, Object> stats) {
+		if(stats==null || stats.isEmpty()) return;
+		for(Map.Entry<RedisClientStat, Object> entry: stats.entrySet()) {
+			RedisClientStat rcs = entry.getKey();
+			switch(rcs) {
+			case AGE:
+				this.age = (Integer)entry.getValue();
+				break;
+			case CMD:
+				this.lastCommand = (String)entry.getValue();
+				break;
+			case DB:
+				this.database = (Integer)entry.getValue();
+				break;
+			case EVENTS:
+				this.fdEvents = (RedisClientFDEvent[])entry.getValue();
+				break;
+			case FD:
+				this.fileDescriptor = (Integer)entry.getValue();
+				break;
+			case FLAGS:
+				this.clientFlags = (RedisClientFlag[])entry.getValue();
+				break;
+			case IDLE:
+				this.idle = (Integer)entry.getValue();
+				break;
+			case MULTI:
+				this.multiCount = (Integer)entry.getValue();
+				break;
+			case OBL:
+				this.outputBufferLength = (Integer)entry.getValue();
+				break;
+			case OLL:
+				this.outputListLength = (Integer)entry.getValue();
+				break;
+			case OMEM:
+				this.outputBufferMemUsage = (Integer)entry.getValue();
+				break;
+			case PSUB:
+				this.psubCount = (Integer)entry.getValue();
+				break;
+			case QBUF:
+				this.queryBufferLength = (Integer)entry.getValue();
+				break;
+			case QBUF_FREE:
+				this.queryBufferFree = (Integer)entry.getValue();
+				break;
+			case SUB:
+				this.subCount = (Integer)entry.getValue();
+				break;
+			default:
+				break;				
+			}
+		}
+	}
 	
 	/**
 	 * Creates a new ClientInfo
@@ -194,13 +268,14 @@ public class ClientInfo implements ClientInfoMBean {
 	 * Returns the client status flag names
 	 * @return the clientFlags
 	 */
-	public String[] getClientFlagNames() {
+	public String getClientFlagNames() {
 		RedisClientFlag[] flags = getClientFlags();
-		String[] flagNames = new String[flags.length];
+		if(flags.length==0) return "";		
+		StringBuilder flagNames = new StringBuilder();		
 		for(int i = 0; i < flags.length; i++) {
-			flagNames[i] = flags[i].name();
+			flagNames.append(flags[i].shortName).append("|");
 		}
-		return flagNames;
+		return flagNames.deleteCharAt(flagNames.length()-1).toString();
 	}
 
 
@@ -298,13 +373,14 @@ public class ClientInfo implements ClientInfoMBean {
 	 * Returns the file descriptor event names
 	 * @return the fdEvents
 	 */
-	public String[] getFdEventNames() {
+	public String getFdEventNames() {
 		RedisClientFDEvent[] events = getFdEvents();
-		String[] eventNames = new String[events.length];
+		if(events.length==0) return "";
+		StringBuilder eventNames = new StringBuilder();
 		for(int i = 0; i < events.length; i++) {
-			eventNames[i] = events[i].name();
+			eventNames.append(events[i].shortName).append("|");
 		}
-		return eventNames;		
+		return eventNames.deleteCharAt(eventNames.length()-1).toString();		
 	}
 	
 

@@ -59,6 +59,8 @@ public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> 
     private Pool<ExtendedJedis> pool;
 	/** The connection serial number factory */
     private final AtomicLong connectionSerial = new AtomicLong();
+    /** The lifecycle listener to notify of connection create and close events */
+    private final ExtendedJedisLifecycleListener listener;
     /**
      * Creates a new ExtendedJedisFactory
 	 * @param host The redis host or ip address
@@ -66,10 +68,11 @@ public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> 
 	 * @param timeout The redis connection timeout in s.
 	 * @param password The redis password
 	 * @param database The redis DB to default to
-	 * @param clientName The client name
+	 * @param clientName The client name prefix
+     * @param listener The extended jedis lifecycle listener
      */
     public ExtendedJedisFactory(final String host, final int port, final int timeout,
-    	    final String password, final int database, final String clientName) {
+    	    final String password, final int database, final String clientName, ExtendedJedisLifecycleListener listener) {
     	super();
     	this.host = host;
     	this.port = port;
@@ -77,6 +80,7 @@ public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> 
     	this.password = password;
     	this.database = database;
     	this.clientName = clientName;
+    	this.listener = listener;
      }
     
     /**
@@ -114,7 +118,7 @@ public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> 
     	if(jedis!=null) {
     		jedis.realClose();
     	}
-
+    	listener.onClose(jedis);
     }
 
     /**
@@ -124,7 +128,8 @@ public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> 
 
 	@Override
     public PooledObject<ExtendedJedis> makeObject() throws Exception {
-    	final ExtendedJedis jedis = new ExtendedJedis(this.host, this.port, this.timeout, pool);
+		final String _clientName = clientName + "#" + connectionSerial.incrementAndGet();
+    	final ExtendedJedis jedis = new ExtendedJedis(this.host, this.port, this.timeout, _clientName, pool);
 
     	jedis.connect();
     	if (null != this.password) {
@@ -133,8 +138,7 @@ public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> 
     	if (database != 0) {
     		jedis.select(database);
     	}
-   		jedis.clientSetname((clientName + "#" + connectionSerial.incrementAndGet()).getBytes());
-
+    	listener.onConnect(jedis);
     	return new DefaultPooledObject<ExtendedJedis>(jedis);
     }
 

@@ -47,13 +47,14 @@ public class ExtendedJedisPool extends Pool<ExtendedJedis> {
 	 * @param password The redis password
 	 * @param database The redis DB to default to
 	 * @param clientName The client name prefix to which a serial number will be appended
+	 * @param listener The extended jedis lifecycle listener
 	 */
 	public ExtendedJedisPool(GenericObjectPoolConfig poolConfig, String host,
 			int port, int timeout, String password, int database,
-			String clientName) {
+			String clientName, ExtendedJedisLifecycleListener listener) {
 		//super(poolConfig, host, port, timeout, password, database, clientName);
 		super(poolConfig, new ExtendedJedisFactory(host, port, timeout, password,
-				database, clientName));
+				database, clientName, listener));
 	}
 
 }

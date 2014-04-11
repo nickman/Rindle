@@ -24,6 +24,9 @@
  */
 package org.helios.pag.store.redis;
 
+import java.net.Socket;
+import java.util.Map;
+
 import redis.clients.jedis.BinaryJedis;
 import redis.clients.util.Pool;
 
@@ -35,20 +38,38 @@ import redis.clients.util.Pool;
  * <p><code>org.helios.pag.store.redis.ExtendedJedis</code></p>
  */
 
-public class ExtendedJedis extends BinaryJedis {
+public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 	/** The pool is connection was created for */
 	protected final Pool<ExtendedJedis> pool;
+	
+	/** The connection's address key */
+	protected final String addressKey;
+	/** The client name */
+	protected final String clientName;
+	
+	/** The client info for this jedis connection */
+	protected final ClientInfo clientInfo;
+	
+	
 	
 	/**
 	 * Creates a new ExtendedJedis
 	 * @param host The redis host name or ip address
 	 * @param port The redis listening port
 	 * @param timeout The redis connection timeout in s.
+	 * @param clientName The assigned client name for this connection
 	 * @param pool The pool is connection was created for
 	 */
-	public ExtendedJedis(String host, int port, int timeout, Pool<ExtendedJedis> pool) {
+	public ExtendedJedis(String host, int port, int timeout, String clientName, Pool<ExtendedJedis> pool) {
 		super(host, port, timeout);
 		this.pool = pool;
+		this.clientName = clientName;
+		connect();
+		Socket socket = this.getClient().getSocket();
+		addressKey = String.format("%s:%s", socket.getLocalAddress().getHostAddress(), socket.getLocalPort());
+		clientSetname(clientName.getBytes(ClientInfo.CHARSET));
+		clientInfo = new ClientInfo(clientName, addressKey);
+		clientInfo.update(RedisClientStat.extract(clientName, clientList()));
 	}
 	
 	/**
@@ -76,6 +97,30 @@ public class ExtendedJedis extends BinaryJedis {
     			disconnect();
     		} catch (Exception e)  {/* No Op */}
     	}
+	}
+
+	/**
+	 * Returns The connection's address key 
+	 * @return the addressKey
+	 */
+	public String getAddressKey() {
+		return addressKey;
+	}
+
+	/**
+	 * Returns the connection's client name
+	 * @return the clientName
+	 */
+	public String getClientName() {
+		return clientName;
+	}
+
+	/**
+	 * Returns the connection's client info
+	 * @return the clientInfo
+	 */
+	public ClientInfo getClientInfo() {
+		return clientInfo;
 	}
 
 }
