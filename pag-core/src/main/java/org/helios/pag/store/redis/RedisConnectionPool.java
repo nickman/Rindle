@@ -71,8 +71,10 @@ import static org.helios.pag.store.redis.RedisConstants.REDIS_TEST_WHILE_IDLE_CO
 import static org.helios.pag.store.redis.RedisConstants.REDIS_TIMEOUT_CONF;
 import static org.helios.pag.store.redis.RedisConstants.REDIS_TIME_BETWEEN_EVICTION_RUNS_CONF;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -84,6 +86,7 @@ import org.apache.logging.log4j.Logger;
 import org.helios.pag.RindleService;
 import org.helios.pag.control.FlushScheduler;
 import org.helios.pag.control.IFlushPeriodListener;
+import org.helios.pag.control.RindleMain;
 import org.helios.pag.util.ConfigurationHelper;
 import org.helios.pag.util.JMXHelper;
 import org.helios.pag.util.StringHelper;
@@ -175,6 +178,7 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 			pubSub = OptimizedPubSub.getInstance(redisHost, redisPort, redisAuth, timeout);
 			monitorJedis = new ExtendedJedis(redisHost, redisPort, timeout, RedisConstants.DEFAULT_REDIS_CLIENT_NAME.replace("Rindle", "RindlePoolMonitor"), null);
 			registerClientInfo(pubSub);
+			pubSub.getClientInfo().update(RedisClientStat.extract(pubSub.getClientInfo().getName(), monitorJedis.clientList()));
 			onConnect(monitorJedis);
 			FlushScheduler.getInstance().registerListener(this);
 			notifyStarted();
@@ -234,23 +238,28 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 
 	@Override
 	public void onPeriodFlush(int period) {
-		String clientList = monitorJedis.clientList();
-		//log.info("==== Client Stats ====\n{}", clientList);
-		Map<String, Map<RedisClientStat, Object>> statsMap = RedisClientStat.parseClientInfo(clientList);
-		for(Map.Entry<String, Map<RedisClientStat, Object>> clientEntry: statsMap.entrySet()) {
-			ClientInfo ci = infos.get(clientEntry.getKey());
-			if(ci!=null) {
-				ci.update(clientEntry.getValue());
+		RindleMain.getInstance().getThreadPool().execute(new Runnable() {
+			public void run() {
+				List<ClientInfo> disconnected = new ArrayList<ClientInfo>();
+				for(ClientInfo ci: infos.values()) {
+					if(!ci.isConnected()) {
+						disconnected.add(ci);
+					}
+				}
+				for(ClientInfo ci: disconnected) {
+					removeClientInfo(ci.getProvider());
+				}
+				String clientList = monitorJedis.clientList();
+				
+				Map<String, Map<RedisClientStat, Object>> statsMap = RedisClientStat.parseClientInfo(clientList);
+				for(Map.Entry<String, Map<RedisClientStat, Object>> clientEntry: statsMap.entrySet()) {
+					ClientInfo ci = infos.get(clientEntry.getKey());					
+					if(ci!=null) {
+						ci.update(clientEntry.getValue());
+					}
+				}				
 			}
-		}
-//		for(Map.Entry<String, Map<RedisClientStat, Object>> clientEntry: statsMap.entrySet()) {
-//			StringBuilder b = new StringBuilder("Client Stats [").append(clientEntry.getKey()).append("]:");
-//			for(Map.Entry<RedisClientStat, Object> entry: clientEntry.getValue().entrySet()) {
-//				b.append("\n\t").append(entry.getKey()).append(":").append(entry.getValue());
-//			}
-//			log.info("\n {}", b.toString());
-//		}
-		
+		});
 	}
 
 	@Override

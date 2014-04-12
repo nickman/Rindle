@@ -34,7 +34,12 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.helios.pag.control.RindleMain;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.status.StatusData;
+import org.apache.logging.log4j.status.StatusListener;
+import org.apache.logging.log4j.status.StatusLogger;
 import org.helios.pag.store.redis.ClientInfo;
 import org.helios.pag.store.redis.ClientInfoProvider;
 import org.jboss.netty.channel.Channel;
@@ -52,7 +57,7 @@ import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
  * <p><code>redis.clients.nedis.netty.OptimizedPubSub</code></p>
  */
 
-public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements PubSub, Closeable, ChannelFutureListener, ClientInfoProvider {
+public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements PubSub, Closeable, ChannelFutureListener, ClientInfoProvider, StatusListener {
 	/** The redis host or IP Address */
 	protected final String host;
 	/** The redis listening port */
@@ -76,6 +81,9 @@ public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements Pub
 	protected final AtomicBoolean connected = new AtomicBoolean(false);
 	/** Flag set when a close is requested to distinguish between a deliberate close and an error */
 	protected final AtomicBoolean closeRequested = new AtomicBoolean(false);
+	
+	/** Instance logger */
+	protected final Logger log = LogManager.getLogger(getClass());
 	
 	/**
 	 * Returns an OptimizedPubSub for the passed host and port
@@ -145,10 +153,11 @@ public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements Pub
 		} else {
 			addressKey = localAddress.toString();
 		}		
-		clientInfo = new ClientInfo(DEFAULT_REDIS_CLIENT_NAME, addressKey);
+		clientInfo = new ClientInfo(DEFAULT_REDIS_CLIENT_NAME, addressKey, this);
 		
 		connected.set(true);
 		fireConnected();
+		StatusLogger.getLogger().registerListener(this);
 	}
 	
 	/**
@@ -577,6 +586,18 @@ public class OptimizedPubSub extends SimpleChannelUpstreamHandler implements Pub
 	 */
 	public int getPort() {
 		return port;
+	}
+
+	@Override
+	public void log(StatusData data) {
+		log.info("Logging StatusData: {}", data);
+		
+	}
+
+	@Override
+	public Level getStatusLevel() {
+		
+		return Level.INFO;
 	}
 
 

@@ -24,24 +24,18 @@
  */
 package org.helios.pag;
 
-import java.util.Collection;
-
-import com.google.common.util.concurrent.Service;
+import javax.management.MXBean;
 
 /**
- * <p>Title: RindleService</p>
- * <p>Description: Defines a lifecycle and dependency model for rindle services</p> 
+ * <p>Title: LoggerControl</p>
+ * <p>Description: Defines a JMX interface used to manage attributes of a service's logger</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.pag.RindleService</code></p>
+ * <p><code>org.helios.pag.LoggerControl</code></p>
  */
-
-public interface RindleService extends Service {
-	/**
-	 * Returns the dependent services of a RindleService
-	 * @return the dependent services of a RindleService
-	 */
-	public Collection<RindleService> getDependentServices();
-	
-	
+@MXBean
+public interface LoggerControl {
+	public String getEffectiveLevel();
+	public String getActualLevel();
+	public void setLevel(String levelName);
 }

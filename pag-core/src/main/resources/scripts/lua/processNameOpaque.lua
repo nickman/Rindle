@@ -1,8 +1,14 @@
 local metricName = KEYS[1]
 local opaqueKey = KEYS[2]
+redis.call('PUBLISH', 'RINDLELOG', 'Fooooo');
 if(metricName == nil and opaqueKey == nil) then 
 	return -1
 end
+
+local mnId = (metricName ~= nil and orredis.call('get',metricName) or nil)
+local okId = (opaqueKey ~= nil and redis.call('get', opaqueKey) or nil)
+
+redis.call('PUBLISH', 'RINDLELOG', 'MnId:'..mnId..'OkId:'..okId)
 
 local gid = redis.call('incr','gidcounter')
 

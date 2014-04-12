@@ -151,5 +151,11 @@ public interface ClientInfoMBean {
 	 * @return the name
 	 */
 	public String getName();
+	
+	/**
+	 * Returns the provider type name
+	 * @return the provider type name
+	 */
+	public String getProviderType();
 
 }

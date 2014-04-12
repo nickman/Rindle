@@ -38,4 +38,10 @@ public interface ClientInfoProvider {
 	 * @return this object's {@link ClientInfo} instance
 	 */
 	public ClientInfo getClientInfo();
+	
+	/**
+	 * Indicates if this provider is connected
+	 * @return true if this provider is connected, false otherwise
+	 */
+	public boolean isConnected();
 }

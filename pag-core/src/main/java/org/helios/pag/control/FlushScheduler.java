@@ -244,7 +244,7 @@ public class FlushScheduler implements ThreadFactory, UncaughtExceptionHandler {
 			public void run(Timeout timeout) throws Exception {
 				if(activePeriods.get(period).get()>0) {
 					timer.newTimeout(this, period, TimeUnit.SECONDS);
-					log.debug("Re-scheduled period timer for period {}", period);
+					log.trace("Re-scheduled period timer for period {}", period);
 					threadPool.execute(new Runnable() {
 						public void run() {
 							for(IFlushPeriodListener listener: listeners.get(period)) {

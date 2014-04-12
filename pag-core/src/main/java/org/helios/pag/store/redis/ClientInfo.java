@@ -72,6 +72,9 @@ public class ClientInfo implements ClientInfoMBean {
 	/** The name assigned to this client */
 	protected String name;
 	
+	/** A reference to the originating ClientInfoProvider so we can test if it is connected */
+	protected final ClientInfoProvider provider;
+	
 	// ID Key:  <address> + fd
 	// split address:  <X>:port  (what do we call X ?)
 	// touch flag, so we can keep track of "gone" connections
@@ -89,10 +92,37 @@ public class ClientInfo implements ClientInfoMBean {
 	 * Creates a new uninitialized ClientInfo
 	 * @param name The client name
 	 * @param addressKey The address key
+	 * @param provider The originating provider
 	 */
-	public ClientInfo(String name, String addressKey) {
+	public ClientInfo(String name, String addressKey, ClientInfoProvider provider) {
 		this.name = name;
 		this.address = addressKey;
+		this.provider = provider;
+	}
+	
+	/**
+	 * Returns the originating provider
+	 * @return the originating provider
+	 */
+	public ClientInfoProvider getProvider() {
+		return provider;
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.pag.store.redis.ClientInfoMBean#getProviderType()
+	 */
+	@Override
+	public String getProviderType() {
+		return provider.getClass().getName();
+	}
+	
+	/**
+	 * Indicates if the originating provider is connected
+	 * @return true if the originating provider is connected, false otherwise
+	 */
+	public boolean isConnected() {
+		return provider.isConnected();
 	}
 	
 	/**
@@ -155,69 +185,6 @@ public class ClientInfo implements ClientInfoMBean {
 		}
 	}
 	
-	/**
-	 * Creates a new ClientInfo
-	 * @param clientInfoDetails The returned details for a connection
-	 */
-	public ClientInfo(String clientInfoDetails) {
-		String[] nvps = SPACE_SPLITTER.split(clientInfoDetails);
-		for(String nvp: nvps) {
-			String[] frags = EQ_SPLITTER.split(nvp);
-			RedisClientStat stat = RedisClientStat.decode(frags[0]);
-			switch(stat) {
-			case ADDR:
-				address = frags[1];
-				break;
-			case AGE:
-				age = Integer.parseInt(frags[1]);
-				break;
-			case CMD:
-				lastCommand = frags[1];
-				break;
-			case DB:
-				 database = Integer.parseInt(frags[1]);
-				break;
-			case EVENTS:
-				fdEvents = RedisClientFDEvent.decode(frags[1]);
-				break;
-			case FD:
-				fileDescriptor = Long.parseLong(frags[1]);
-				break;
-			case FLAGS:
-				clientFlags = RedisClientFlag.decode(frags[1]);
-				break;
-			case IDLE:
-				idle = Integer.parseInt(frags[1]);
-				break;
-			case MULTI:
-				multiCount = Integer.parseInt(frags[1]);
-				break;
-			case OBL:
-				outputBufferLength = Integer.parseInt(frags[1]);
-				break;
-			case OLL:
-				outputListLength = Integer.parseInt(frags[1]);
-				break;
-			case OMEM:
-				outputBufferMemUsage = Integer.parseInt(frags[1]);
-				break;
-			case PSUB:
-				psubCount = Integer.parseInt(frags[1]);
-				break;
-			case QBUF:
-				queryBufferLength = Integer.parseInt(frags[1]);
-				break;
-			case QBUF_FREE:
-				queryBufferFree = Integer.parseInt(frags[1]);
-				break;
-			case SUB:
-				subCount = Integer.parseInt(frags[1]);
-				break;
-			default:
-				break;
-			}
-		}
-	}
 
 
 	/**

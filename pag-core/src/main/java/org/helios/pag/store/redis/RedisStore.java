@@ -25,9 +25,7 @@
 package org.helios.pag.store.redis;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,8 +34,7 @@ import org.helios.pag.control.RindleMain;
 import org.helios.pag.store.IStore;
 import org.helios.pag.util.StringHelper;
 
-import redis.clients.nedis.netty.OptimizedPubSub;
-import redis.clients.nedis.netty.OptimizedPubSubFactory;
+import redis.clients.nedis.netty.EmptySubListener;
 
 import com.google.common.util.concurrent.AbstractService;
 
@@ -62,15 +59,6 @@ public class RedisStore extends AbstractService implements IStore {
 		
 	}
 
-	public List<String> foo() {
-		return connectionPool.redisTask(new RedisTask<List<String>>() {
-			@Override
-			public List<String> redisTask(ExtendedJedis jedis) throws Exception {
-				// TODO Auto-generated method stub
-				return Arrays.asList(jedis.clientList());
-			}
-		});
-	}
 	
 	/**
 	 * <p>Starts the Redis Store Service</p>
@@ -84,8 +72,22 @@ public class RedisStore extends AbstractService implements IStore {
 		connectionPool.addListener(new Listener() {
 			@Override
 			public void running() {
-				log.info("Foo: {}", foo());
 				service.notifyStarted();
+				connectionPool.pubSub.subscribe("RINDLELOG");
+				connectionPool.pubSub.registerListener(new EmptySubListener() {
+					@Override
+					public void onChannelMessage(String channel, String message) {
+						log.info("[{}]:{}", channel, message);
+						//super.onChannelMessage(channel, message);
+					}
+				});
+				connectionPool.redisTask(new RedisTask<Void>() {
+					@Override
+					public Void redisTask(ExtendedJedis jedis) throws Exception {
+						
+						return null;
+					}
+				});
 			}
 
 			@Override
@@ -107,6 +109,7 @@ public class RedisStore extends AbstractService implements IStore {
 				log.error("Failed from {}", from, failure);				
 			}
 		}, RindleMain.getInstance().getThreadPool());
+		
 	}
 
 

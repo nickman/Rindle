@@ -64,11 +64,11 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 		super(host, port, timeout);
 		this.pool = pool;
 		this.clientName = clientName;
-		connect();
+		connect();		
 		Socket socket = this.getClient().getSocket();
 		addressKey = String.format("%s:%s", socket.getLocalAddress().getHostAddress(), socket.getLocalPort());
 		clientSetname(clientName.getBytes(ClientInfo.CHARSET));
-		clientInfo = new ClientInfo(clientName, addressKey);
+		clientInfo = new ClientInfo(clientName, addressKey, this);
 		clientInfo.update(RedisClientStat.extract(clientName, clientList()));
 	}
 	

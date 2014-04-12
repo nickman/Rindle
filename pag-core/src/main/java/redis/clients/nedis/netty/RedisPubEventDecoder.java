@@ -196,7 +196,11 @@ public class RedisPubEventDecoder<T> extends ReplayingDecoder<RedisPubEvent> {
 					checkpoint(TYPE);
 					return processFinal(ctx.getAttachment());
 				}
-				checkpoint(NEXT_SIZE_PREFIX);				
+				checkpoint(NEXT_SIZE_PREFIX);
+		case CR:
+			break;
+		default:
+			break;				
 		}
 		return null;
 	}
