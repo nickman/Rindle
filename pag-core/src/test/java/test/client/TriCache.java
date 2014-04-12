@@ -29,7 +29,7 @@ import java.nio.CharBuffer;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
-import org.helios.pag.util.unsafe.UnsafeAdapter;
+import org.helios.rindle.util.unsafe.UnsafeAdapter;
 
 /**
  * <p>Title: TriCache</p>

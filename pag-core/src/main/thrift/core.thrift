@@ -1,4 +1,4 @@
-namespace * org.helios.pag.core.datapoints.thrift
+namespace * org.helios.rindle.core.datapoints.thrift
 
 
 	union DataPointValue {

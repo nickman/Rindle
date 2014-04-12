@@ -28,11 +28,11 @@ import java.util.Random;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.helios.pag.period.impl.ConcurrentDirectEWMA;
-import org.helios.pag.period.impl.DirectEWMA;
-import org.helios.pag.util.SystemClock;
-import org.helios.pag.util.SystemClock.ElapsedTime;
-import org.helios.pag.util.unsafe.UnsafeAdapter;
+import org.helios.rindle.period.impl.ConcurrentDirectEWMA;
+import org.helios.rindle.period.impl.DirectEWMA;
+import org.helios.rindle.util.SystemClock;
+import org.helios.rindle.util.SystemClock.ElapsedTime;
+import org.helios.rindle.util.unsafe.UnsafeAdapter;
 
 /**
  * <p>Title: EWMATest</p>
@@ -49,7 +49,7 @@ public class EWMATest {
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		System.setProperty("org.helios.pag.umem.trackmem", "true");
+		System.setProperty("org.helios.rindle.umem.trackmem", "true");
 		LOG.info("EWMA Test");
 		Random R = new Random(System.currentTimeMillis());
 		int sampleCount = 15000000;

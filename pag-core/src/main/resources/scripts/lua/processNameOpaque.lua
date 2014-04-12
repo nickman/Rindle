@@ -1,14 +1,14 @@
 local metricName = KEYS[1]
 local opaqueKey = KEYS[2]
-redis.call('PUBLISH', 'RINDLELOG', 'Fooooo');
+
 if(metricName == nil and opaqueKey == nil) then 
 	return -1
 end
 
-local mnId = (metricName ~= nil and orredis.call('get',metricName) or nil)
+local mnId = (metricName ~= nil and redis.call('get',metricName) or nil)
 local okId = (opaqueKey ~= nil and redis.call('get', opaqueKey) or nil)
 
-redis.call('PUBLISH', 'RINDLELOG', 'MnId:'..mnId..'OkId:'..okId)
+rlog.info('MnId:', mnId, ' OkId:', okId)
 
 local gid = redis.call('incr','gidcounter')
 
@@ -23,10 +23,6 @@ elseif(opaqueKey ~= nil) then
 	redis.call('hmset', gid, 'O', opaqueKey)
 	redis.call('set', opaqueKey, gid)
 end
-
-
-return gid;
-
 
 
 --[[    =========================
@@ -51,3 +47,9 @@ return gid;
 
 
 ]]
+
+rlog.info("Loaded processNameOpaque")
+return gid;
+
+
+
