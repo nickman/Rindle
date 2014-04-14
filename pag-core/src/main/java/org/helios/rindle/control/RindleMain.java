@@ -24,6 +24,7 @@
  */
 package org.helios.rindle.control;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
@@ -106,7 +107,20 @@ public class RindleMain extends AbstractRindleService {
 	public static void main(String[] args) {
 		LOG.info("Booting Rindle");
 		try {
-			getInstance();
+			RindleMain rm = getInstance();
+			rm.getIstore().purge();
+			//long result = rm.getIstore().getGlobalId("AAA", "BBB".getBytes());
+			long result = rm.getIstore().getGlobalId("FOO", "BAR".getBytes())[0];
+			LOG.info("Foo Result: {}", result);
+			result = rm.getIstore().getGlobalId("XXX");
+			LOG.info("XXX Result: {}", result);
+			result = rm.getIstore().getGlobalId("XYX".getBytes());
+			LOG.info("XYX Result: {}", result);
+			
+			long[] results = rm.getIstore().getGlobalId("XXX", "XYX".getBytes());
+			LOG.info("XXX/XYX Results: {}", Arrays.toString(results));
+			Thread.sleep(3000);
+			System.exit(0);
 		} catch (Exception x) {
 			x.printStackTrace(System.err);
 			System.exit(-1);

@@ -101,8 +101,16 @@ public class ScriptControl extends AbstractRindleService {
 	@Override
 	protected void doStart() {
 		log.info("Starting ScriptControl....");
-		loadScriptsFrom(UTIL_SCRIPT_BASE);
-		loadScriptsFrom(SCRIPT_BASE);
+		connectionPool.redisTask(new RedisTask<List<Void>>(){
+			@Override
+			public List<Void> redisTask(ExtendedJedis jedis) throws Exception {
+				jedis.scriptFlush();
+				return null;
+			}
+		});		
+		
+		loadScriptsFrom(UTIL_SCRIPT_BASE, true);
+		loadScriptsFrom(SCRIPT_BASE, false);
 		List<Long> scriptCheck = connectionPool.redisTask(new RedisTask<List<Long>>(){
 			@Override
 			public List<Long> redisTask(ExtendedJedis jedis) throws Exception {
@@ -122,8 +130,9 @@ public class ScriptControl extends AbstractRindleService {
 	/**
 	 * Loads lua scripts from the specified resource base
 	 * @param base The resource base to load from
+	 * @param eval If true, the scripts will be evaled once
 	 */
-	protected void loadScriptsFrom(String base) {
+	protected void loadScriptsFrom(String base, final boolean eval) {
 		log.info("Loading Script Base [{}]", base);
 		String[] scriptNames = getResourceListing(getClass(), base);
 		if(log.isDebugEnabled()) log.debug("Loading scripts: {}", Arrays.toString(scriptNames));
@@ -140,7 +149,7 @@ public class ScriptControl extends AbstractRindleService {
 				public Void redisTask(ExtendedJedis jedis) throws Exception {
 					try {
 						jedis.scriptLoad(scriptBytes);
-//						jedis.evalsha(sha);
+						if(eval) jedis.evalsha(sha); 
 						return null;
 					} catch (Exception ex) {
 						log.error("Failed to load script [{}]. Script follows.\n{}\n=====END SCRIPT======", scriptName, new String(scriptBytes));

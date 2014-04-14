@@ -57,9 +57,15 @@ public class ExtendedJedisPool extends Pool<ExtendedJedis> implements Connection
 			int port, int timeout, String password, int database,
 			String clientName, ExtendedJedisLifecycleListener listener) {
 		//super(poolConfig, host, port, timeout, password, database, clientName);
-		super(poolConfig, new ExtendedJedisFactory(host, port, timeout, password,
-				database, clientName, listener));
+		super();
+		ExtendedJedisFactory factory = new ExtendedJedisFactory(host, port, timeout, password,
+				database, clientName, listener);
+//		super(poolConfig, new ExtendedJedisFactory(host, port, timeout, password,
+//				database, clientName, listener));
+		this.initPool(poolConfig, factory);
 		this.pool = internalPool;
+		((ExtendedJedisFactory)this.internalPool.getFactory()).setPool(internalPool);
+		
 	}
 	
 	/**

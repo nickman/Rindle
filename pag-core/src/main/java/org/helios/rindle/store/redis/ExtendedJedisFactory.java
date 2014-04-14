@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.PooledObjectFactory;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
+import org.apache.commons.pool2.impl.GenericObjectPool;
 
 import redis.clients.jedis.BinaryJedis;
 import redis.clients.util.Pool;
@@ -56,7 +57,7 @@ public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> 
     /** The redis client name */
     private final String clientName;
     /** The pool this factory is creating connections for */
-    private Pool<ExtendedJedis> pool;
+    private GenericObjectPool<ExtendedJedis> pool;
 	/** The connection serial number factory */
     private final AtomicLong connectionSerial = new AtomicLong();
     /** The lifecycle listener to notify of connection create and close events */
@@ -87,7 +88,7 @@ public class ExtendedJedisFactory implements PooledObjectFactory<ExtendedJedis> 
      * Sets the pool this factory is creating connections for
      * @param pool the factory pool
      */
-    void setPool(Pool<ExtendedJedis> pool) {
+    void setPool(GenericObjectPool<ExtendedJedis> pool) {
     	this.pool = pool;
     }
 	

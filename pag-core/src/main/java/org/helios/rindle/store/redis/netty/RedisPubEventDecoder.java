@@ -39,6 +39,7 @@ import static org.helios.rindle.store.redis.netty.RedisPubEvent.NEXT_SIZE_PREFIX
 import static org.helios.rindle.store.redis.netty.RedisPubEvent.TYPE;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,7 +58,23 @@ import org.jboss.netty.handler.codec.replay.ReplayingDecoder;
  * @param <T> 
  */
 public class RedisPubEventDecoder<T> extends ReplayingDecoder<RedisPubEvent> {
-    
+	
+	/** The default platform charset */
+	public static final Charset CHARSET = Charset.defaultCharset();
+	
+	/**
+	 * Renders the contents of the passed channel buffer using the default platform charset 
+	 * @param cb the channel buffer to render
+	 * @return the rendered content
+	 */
+	public String ts(ChannelBuffer cb) {
+		if(cb==null) return "<null>";
+		int readable = super.actualReadableBytes();
+		if(readable<1) return "<empty>";
+		byte[] bytes = new byte[readable];
+		cb.getBytes(0, bytes);
+		return new String(bytes, CHARSET);
+	}
 
 	/**
 	 * Creates a new RedisPubEventDecoder
@@ -134,7 +151,7 @@ public class RedisPubEventDecoder<T> extends ReplayingDecoder<RedisPubEvent> {
 			case TYPE:
 				byte typeByte = channelBuffer.readByte();
 				if(typeByte==ASTERISK_BYTE.getByte()) {					
-					checkpoint(ARG_COUNT);
+					checkpoint(ARG_COUNT);					
 				} else if(typeByte==COLON_BYTE.getByte()) {
 					byte[] confirmBytes = readUntilCr(channelBuffer);
 					checkpoint(TYPE);		
@@ -146,10 +163,9 @@ public class RedisPubEventDecoder<T> extends ReplayingDecoder<RedisPubEvent> {
 					String msg = new String(confirmBytes);
 					if("OK".equals(msg)) {
 						return "OK";
-					} else  {
-						if(msg.startsWith("OK")) {
-							
-						}
+					}
+					if(msg.startsWith("OK")) {
+						/* What to do here ? */
 					}
 					checkpoint(TYPE);							
 				} else {
@@ -165,7 +181,7 @@ public class RedisPubEventDecoder<T> extends ReplayingDecoder<RedisPubEvent> {
 				int argCount = Integer.parseInt(new String(argsInBytes));
 				ctx.setAttachment(new Object[] {new AtomicInteger(argCount), null, new ArrayList<byte[]>(argCount)});
 				checkpoint(NEXT_SIZE_PREFIX);
-				break;
+			//$FALL-THROUGH$
 			case NEXT_SIZE_PREFIX:
 				byte sizePrefixByte = channelBuffer.readByte();
 				if(sizePrefixByte==DOLLAR_BYTE.getByte()) {
@@ -186,7 +202,7 @@ public class RedisPubEventDecoder<T> extends ReplayingDecoder<RedisPubEvent> {
 				int nextSize = Integer.parseInt(new String(nextSizeInBytes));
 				((Object[])ctx.getAttachment())[1] = nextSize;
 				checkpoint(NEXT_MESSAGE);
-				break;
+				//$FALL-THROUGH$
 			case NEXT_MESSAGE:
 				Object[] channelState  = (Object[])ctx.getAttachment();
 				nextSize = (Integer)channelState[1];
@@ -197,6 +213,7 @@ public class RedisPubEventDecoder<T> extends ReplayingDecoder<RedisPubEvent> {
 					return processFinal(ctx.getAttachment());
 				}
 				checkpoint(NEXT_SIZE_PREFIX);
+				break;
 		case CR:
 			break;
 		default:

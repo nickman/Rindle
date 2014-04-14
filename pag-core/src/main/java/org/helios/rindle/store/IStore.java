@@ -36,12 +36,17 @@ import org.helios.rindle.RindleService;
 
 public interface IStore extends RindleService {
 	/**
+	 * Purges the store
+	 */
+	public void purge();
+	
+	/**
 	 * Returns the global metric id for the passed name and opaque key
 	 * @param name The metric name
 	 * @param opaqueKey The metric opaque key
 	 * @return The global id or -1 if both the name and opaque key were null
 	 */
-	public long getGlobalId(String name, byte[] opaqueKey);
+	public long[] getGlobalId(String name, byte[] opaqueKey);
 	
 	/**
 	 * Returns the global metric id for the passed name

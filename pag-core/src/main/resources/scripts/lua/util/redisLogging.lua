@@ -37,7 +37,7 @@ rlog.tabToString = function(tab, maxDepth, valueDelimiter, lineDelimiter, indent
         valueDelimiter = " = "
     end
     if (lineDelimiter == nil) then
-        lineDelimiter = "\n"
+        lineDelimiter = ", "
     end
     if (maxDepth == nil) then
         maxDepth = 2
@@ -65,70 +65,76 @@ rlog.tabToString = function(tab, maxDepth, valueDelimiter, lineDelimiter, indent
 end
 
 rlog.p = function(msg)
-    redis.call('PUBLISH', 'RINDLELOG', msg);
-end;
+    redis.call('PUBLISH', 'RINDLELOG', msg)
+end
 
 rlog.ts = function(obj) 
 	if(obj == nil) then return 'null' end
+	if(type(obj) == 'boolean') then 
+		if(obj) then return 'true' 
+		else return false
+		end
+	end
 	if(type(obj) ~= 'table') then return tostring(obj) end
-	return rlog.tabToString(obj);
-end;
+	
+	return rlog.tabToString(obj)
+end
 
 
 rlog.getLevel = function()
-	return rlog.LOG_LEVEL_DECODES[rlog.LEVEL];
+	return rlog.LOG_LEVEL_DECODES[rlog.LEVEL]
 end	
 
 rlog._log = function(...) 
 	local msg = ''		
-	for i,v in ipairs(arg) do
-		msg = msg .. rlog.ts(v)
-	end
-	--redis.call('PUBLISH', 'RINDLELOG:' .. tostring(redis.call('CLIENT', 'GETNAME')), msg);
-    redis.call('PUBLISH', 'RINDLELOG', msg);
-	return msg;
-end;
+    
+	for i,v in ipairs(arg) do        
+		msg = msg .. rlog.ts(v[i])
+	end	
+    redis.call('PUBLISH', 'RINDLELOG', msg)
+	return msg
+end
 
 rlog.trace = function(...) 
 	if(rlog.LEVEL <= 1) then
 		rlog._log(arg)
-	end;
+	end
 end
 
 
 rlog.debug = function(...) 
 	if(rlog.LEVEL <= 2) then
 		rlog._log(arg)
-	end;
+	end
 end
 
 rlog.info = function(...) 
 	if(rlog.LEVEL <= 3) then
 		rlog._log(arg)
-	end;
+	end
 end
 
 rlog.warn = function(...) 
 	if(rlog.LEVEL <= 4) then
 		rlog._log(arg)
-	end;
+	end
 end
 
 rlog.error = function(...) 
 	if(rlog.LEVEL <= 5) then
 		rlog._log(arg)
-	end;
+	end
 end
 
 rlog.fatal = function(...) 
 	if(rlog.LEVEL <= 6) then
 		rlog._log(arg)
-	end;
+	end
 end
 
 --local function alex() return 3.1415 end
 rawset(_G, "rlog", rlog)
 
 
-return "rlog loaded"  --rlog._log('Hello ', 5, ' Jupiter', ' Client:', redis.call('CLIENT', 'GETNAME'), " r:", rlog);
+return "rlog loaded"  --rlog._log('Hello ', 5, ' Jupiter', ' Client:', redis.call('CLIENT', 'GETNAME'), " r:", rlog)
  

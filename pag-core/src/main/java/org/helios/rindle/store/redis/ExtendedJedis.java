@@ -26,7 +26,8 @@ package org.helios.rindle.store.redis;
 
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.util.Map;
+
+import org.apache.commons.pool2.impl.GenericObjectPool;
 
 import redis.clients.jedis.BinaryJedis;
 import redis.clients.util.Pool;
@@ -41,7 +42,7 @@ import redis.clients.util.Pool;
 
 public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 	/** The pool is connection was created for */
-	protected final Pool<ExtendedJedis> pool;
+	protected final GenericObjectPool<ExtendedJedis> pool;
 	
 	/** The connection's address key */
 	protected final String addressKey;
@@ -90,7 +91,7 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 	 * @param clientName The assigned client name for this connection
 	 * @param pool The pool is connection was created for
 	 */
-	public ExtendedJedis(String host, int port, int timeout, String clientName, Pool<ExtendedJedis> pool) {
+	public ExtendedJedis(String host, int port, int timeout, String clientName, GenericObjectPool<ExtendedJedis> pool) {
 		super(host, port, timeout);
 		this.pool = pool;
 		this.clientName = clientName;
@@ -112,7 +113,7 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 		if(pool==null) {
 			realClose();
 		} else {
-			pool.returnResource(this);
+			pool.returnObject(this);
 		}
 	}
 	
