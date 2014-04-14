@@ -72,30 +72,24 @@ import static org.helios.rindle.store.redis.RedisConstants.REDIS_TIMEOUT_CONF;
 import static org.helios.rindle.store.redis.RedisConstants.REDIS_TIME_BETWEEN_EVICTION_RUNS_CONF;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.management.ObjectName;
 
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.helios.rindle.AbstractRindleService;
 import org.helios.rindle.RindleService;
 import org.helios.rindle.control.FlushScheduler;
 import org.helios.rindle.control.IFlushPeriodListener;
 import org.helios.rindle.control.RindleMain;
+import org.helios.rindle.store.ConnectionPool;
 import org.helios.rindle.store.redis.netty.OptimizedPubSub;
 import org.helios.rindle.util.ConfigurationHelper;
 import org.helios.rindle.util.JMXHelper;
 import org.helios.rindle.util.StringHelper;
-
-import com.google.common.util.concurrent.AbstractService;
 
 /**
  * <p>Title: RedisConnectionPool</p>
@@ -105,13 +99,11 @@ import com.google.common.util.concurrent.AbstractService;
  * <p><code>org.helios.rindle.store.redis.RedisConnectionPool</code></p>
  */
 
-public class RedisConnectionPool extends AbstractService implements RindleService, IFlushPeriodListener, ExtendedJedisLifecycleListener {
+public class RedisConnectionPool extends AbstractRindleService implements RedisConnectionPoolMBean, IFlushPeriodListener, ExtendedJedisLifecycleListener {
 	/** The redis connection pool configuration */
 	protected final GenericObjectPoolConfig  poolConfig = new GenericObjectPoolConfig ();
 	
-	/** Instance logger */
-	protected final Logger log = LogManager.getLogger(getClass());
-	
+
 	/** The redis host or ip address */
 	protected final String redisHost;
 	/** The redis listening port */
@@ -132,12 +124,15 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 	
 	/** The jedis connection pool */
 	protected ExtendedJedisPool pool = null;
+	/** The pool instrumentation */
+	protected ConnectionPool poolInstr = null;
 	/** The pub/sub redis interface */
 	protected OptimizedPubSub pubSub;
 	/** The script controller */
 	protected ScriptControl scriptControl = new ScriptControl(this);
 	
-	protected final Set<RindleService> deps = new HashSet<RindleService>(Arrays.asList(scriptControl)); 
+	
+	
 	
 	/** A map of this pool's connected extended jedis client info objects */
 	protected final Map<String, ClientInfo> infos = new ConcurrentHashMap<String, ClientInfo>(); 
@@ -168,7 +163,8 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 		poolConfig.setSoftMinEvictableIdleTimeMillis(ConfigurationHelper.getLongSystemThenEnvProperty(REDIS_SOFT_MIN_EVICTABLE_IDLE_TIME_CONF, DEFAULT_REDIS_SOFT_MIN_EVICTABLE_IDLE_TIME));
 		poolConfig.setNumTestsPerEvictionRun(ConfigurationHelper.getIntSystemThenEnvProperty(REDIS_NUM_TESTS_PER_EVICTION_RUN_CONF, DEFAULT_REDIS_NUM_TESTS_PER_EVICTION_RUN));
 		poolConfig.setTestOnBorrow(ConfigurationHelper.getBooleanSystemThenEnvProperty(REDIS_TEST_ON_BORROW_CONF, DEFAULT_REDIS_TEST_ON_BORROW));
-		poolConfig.setTestOnReturn(ConfigurationHelper.getBooleanSystemThenEnvProperty(REDIS_TEST_ON_RETURN_CONF, DEFAULT_REDIS_TEST_ON_RETURN));		
+		poolConfig.setTestOnReturn(ConfigurationHelper.getBooleanSystemThenEnvProperty(REDIS_TEST_ON_RETURN_CONF, DEFAULT_REDIS_TEST_ON_RETURN));
+		addDependentServices(scriptControl);
 	}
 
 	/**
@@ -180,6 +176,7 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 	protected void doStart() {
 		try {
 			pool = new ExtendedJedisPool(poolConfig, redisHost, redisPort, timeout, redisAuth, redisDb, clientName, this);
+			poolInstr = pool.getConnectionPool();
 			log.info(StringHelper.banner("Started Redis Connection Pool.\n\tHost:%s\n\tPort:%s\n\tTimeout:%s", redisHost, redisPort, timeout));
 			pubSub = OptimizedPubSub.getInstance(redisHost, redisPort, redisAuth, timeout);
 			monitorJedis = new ExtendedJedis(redisHost, redisPort, timeout, RedisConstants.DEFAULT_REDIS_CLIENT_NAME.replace("Rindle", "RindlePoolMonitor"), null);
@@ -253,7 +250,10 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 					}
 				}
 				for(ClientInfo ci: disconnected) {
-					removeClientInfo(ci.getProvider());
+					if(ci.getProvider() instanceof ExtendedJedis) {
+						((ExtendedJedis)ci.getProvider()).close();
+					}
+					//removeClientInfo(ci.getProvider());
 				}
 				String clientList = monitorJedis.clientList();
 				
@@ -318,6 +318,122 @@ public class RedisConnectionPool extends AbstractService implements RindleServic
 			ObjectName on = JMXHelper.objectName("org.helios.rindle:type=PooledConnection,name=" + ObjectName.quote(cip.getClientInfo().getName()));
 			JMXHelper.unregisterMBean(on);
 		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getNumActive()
+	 */
+	@Override
+	public int getNumActive() {
+		return poolInstr.getNumActive();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getNumIdle()
+	 */
+	@Override
+	public int getNumIdle() {
+		return poolInstr.getNumIdle();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getNumWaiters()
+	 */
+	@Override
+	public int getNumWaiters() {
+		return poolInstr.getNumWaiters();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getBorrowedCount()
+	 */
+	@Override
+	public long getBorrowedCount() {
+		return poolInstr.getBorrowedCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getCreatedCount()
+	 */
+	@Override
+	public long getCreatedCount() {
+		return poolInstr.getCreatedCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getDestroyedCount()
+	 */
+	@Override
+	public long getDestroyedCount() {
+		return poolInstr.getDestroyedCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getMaxBorrowWaitTime()
+	 */
+	@Override
+	public long getMaxBorrowWaitTime() {
+		return poolInstr.getMaxBorrowWaitTime();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getMaxTotal()
+	 */
+	@Override
+	public long getMaxTotal() {
+		return poolInstr.getMaxTotal();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getReturnedCount()
+	 */
+	@Override
+	public long getReturnedCount() {
+		return poolInstr.getReturnedCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getMaxWait()
+	 */
+	@Override
+	public long getMaxWait() {
+		return poolInstr.getMaxWait();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getMeanActiveTime()
+	 */
+	@Override
+	public long getMeanActiveTime() {
+		return poolInstr.getMeanActiveTime();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getMeanBorrowWaitTime()
+	 */
+	@Override
+	public long getMeanBorrowWaitTime() {
+		return poolInstr.getMeanBorrowWaitTime();
+	}
+
+	/**
+	 * Returns the script controller
+	 * @return the script controller
+	 */
+	public ScriptControl getScriptControl() {
+		return scriptControl;
 	}
 	
 }

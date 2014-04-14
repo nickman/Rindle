@@ -24,11 +24,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.helios.rindle.AbstractRindleService;
 import org.helios.rindle.RindleService;
 
-import com.google.common.util.concurrent.AbstractService;
+import redis.clients.jedis.Jedis;
 
 /**
  * <p>Title: ScriptControl</p>
@@ -38,7 +37,7 @@ import com.google.common.util.concurrent.AbstractService;
  * <p><b><code>org.helios.rindle.store.redis.ScriptControl</code></b>
  */
 
-public class ScriptControl extends AbstractService implements RindleService {
+public class ScriptControl extends AbstractRindleService {
 	
 	/** The resource root for the util lua scripts */
 	public static final String UTIL_SCRIPT_BASE = "scripts/lua/util";
@@ -59,11 +58,6 @@ public class ScriptControl extends AbstractService implements RindleService {
 	/** The redis connection pool for loading and invoking the redis lua scripts */
 	protected final RedisConnectionPool connectionPool;
 	
-	/** Instance logger */
-	protected final Logger log = LogManager.getLogger(getClass());
-	
-	
-	
 	/**
 	 * Creates a new ScriptControl for Redis Lua scripts
 	 * @param connectionPool the connection pool
@@ -71,7 +65,35 @@ public class ScriptControl extends AbstractService implements RindleService {
 	public ScriptControl(RedisConnectionPool connectionPool) {
 		this.connectionPool = connectionPool;
 	}
+	//								SHA			KEYS			ARGS
+	//  public Object evalsha(byte[] sha1, List<byte[]> keys, List<byte[]> args) 
+	//							SHA				KEY COUNT	 ALL PARAMS
+	//  public Object evalsha(byte[] sha1, int keyCount, byte[]... params)
+	//							SHA
+	//	public Object evalsha(byte[] sha1)
+	
+	/**
+	 * Invokes a redis lua script
+	 * @param jedis The redis connection
+	 * @param scriptSha The script sha
+	 * @param keyCount The number of keys represented in the params
+	 * @param params The keys and args to the script
+	 * @return the return value of the script
+	 */
+	public Object invokeScript(ExtendedJedis jedis, byte[] scriptSha, int keyCount, byte[]...params) {
+		return jedis.evalsha(scriptSha, keyCount, params);
+	}
 
+	/**
+	 * Returns the sha1 bytes for the passed script name
+	 * @param scriptName The script name
+	 * @return the sha1 bytes
+	 */
+	public byte[] getScriptSha(String scriptName) {
+		if(scriptName==null) throw new IllegalArgumentException("The passed script name was null");
+		return sha1s.get(scriptName);
+	}
+	
 	/**
 	 * {@inheritDoc}
 	 * @see com.google.common.util.concurrent.AbstractService#doStart()
@@ -118,7 +140,7 @@ public class ScriptControl extends AbstractService implements RindleService {
 				public Void redisTask(ExtendedJedis jedis) throws Exception {
 					try {
 						jedis.scriptLoad(scriptBytes);
-						jedis.evalsha(sha);
+//						jedis.evalsha(sha);
 						return null;
 					} catch (Exception ex) {
 						log.error("Failed to load script [{}]. Script follows.\n{}\n=====END SCRIPT======", scriptName, new String(scriptBytes));
@@ -126,7 +148,8 @@ public class ScriptControl extends AbstractService implements RindleService {
 					}
 				}
 			});
-			log.info("Loaded script: {}", scriptName);
+			
+			log.info("Loaded script: {} with SHA1: {}", scriptName, shaStr);
 		}
 	}
 

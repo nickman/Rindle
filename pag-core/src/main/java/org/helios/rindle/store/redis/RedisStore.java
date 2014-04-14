@@ -24,18 +24,18 @@
  */
 package org.helios.rindle.store.redis;
 
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import javax.management.MXBean;
+
+import org.helios.rindle.AbstractRindleService;
 import org.helios.rindle.RindleService;
 import org.helios.rindle.control.RindleMain;
 import org.helios.rindle.store.IStore;
 import org.helios.rindle.store.redis.netty.EmptySubListener;
 import org.helios.rindle.util.StringHelper;
-
-import com.google.common.util.concurrent.AbstractService;
 
 /**
  * <p>Title: RedisStore</p>
@@ -44,12 +44,18 @@ import com.google.common.util.concurrent.AbstractService;
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.rindle.store.redis.RedisStore</code></p>
  */
-
-public class RedisStore extends AbstractService implements IStore {
-	/** Instance logger */
-	protected Logger log = LogManager.getLogger(getClass());
+@MXBean
+public class RedisStore extends AbstractRindleService implements IStore {
 	/** The redis connection pool */
 	protected RedisConnectionPool connectionPool = new RedisConnectionPool();
+	protected ScriptControl scriptControl = null;
+	protected byte[] processNameOpaqueScriptSha = null;
+	
+	/** The default platform charset */
+	public static final Charset CHARSET = Charset.defaultCharset();
+	
+	/** A constant for a Null string as bytes */
+	private static final byte[] NULL_BYTES = "NULL".getBytes(CHARSET);
 	
 	/**
 	 * Creates a new RedisStore
@@ -57,7 +63,56 @@ public class RedisStore extends AbstractService implements IStore {
 	public RedisStore() {
 		
 	}
+	
+	/**
+	 * Conserts a string to bytes for redis store
+	 * @param s The string to convert
+	 * @return the bytes
+	 */
+	public static byte[] strToBytes(String s) {
+		return s==null ? NULL_BYTES : s.trim().getBytes(CHARSET);
+	}
+	
+	/**
+	 * Performs a null/zero-length byte check on the passed byte array
+	 * @param b The byte array to check
+	 * @return the passed byte array or the NULL_BYTES constant if the array was null or zero-length
+	 */
+	public static byte[] nvl(byte[] b) {
+		return (b==null || b.length==0) ? NULL_BYTES : b;
+	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getGlobalId(java.lang.String, byte[])
+	 */
+	@Override
+	public long getGlobalId(final String name, final byte[] opaqueKey) {
+		return connectionPool.redisTask(new RedisTask<Long>() {
+			@Override
+			public Long redisTask(ExtendedJedis jedis) throws Exception {			
+				return (Long)scriptControl.invokeScript(jedis, processNameOpaqueScriptSha, 0, strToBytes(name), nvl(opaqueKey));
+			}
+		});
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getGlobalId(java.lang.String)
+	 */
+	@Override
+	public long getGlobalId(String name) {
+		return getGlobalId(name, null);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getGlobalId(byte[])
+	 */
+	@Override
+	public long getGlobalId(byte[] opaqueKey) {
+		return getGlobalId(null, opaqueKey);
+	}
 	
 	/**
 	 * <p>Starts the Redis Store Service</p>
@@ -72,6 +127,8 @@ public class RedisStore extends AbstractService implements IStore {
 			@Override
 			public void running() {
 				service.notifyStarted();
+				scriptControl  = connectionPool.getScriptControl();
+				processNameOpaqueScriptSha = scriptControl.getScriptSha("processNameOpaque.lua");
 				connectionPool.pubSub.subscribe("RINDLELOG:" + connectionPool.pubSub.getClientInfo().getName());
 				connectionPool.pubSub.registerListener(new EmptySubListener() {
 					@Override

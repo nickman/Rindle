@@ -31,6 +31,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.helios.rindle.AbstractRindleService;
 import org.helios.rindle.Constants;
 import org.helios.rindle.RindleService;
 import org.helios.rindle.store.IStore;
@@ -48,7 +49,7 @@ import com.google.common.util.concurrent.ServiceManager;
  * <p><code>org.helios.rindle.control.RindleMain</code></p>
  */
 
-public class RindleMain extends AbstractService implements RindleService {
+public class RindleMain extends AbstractRindleService {
 	/** Static class logger */
 	protected static final Logger LOG = LogManager.getLogger(RindleMain.class);
 	/** Singleton instance */

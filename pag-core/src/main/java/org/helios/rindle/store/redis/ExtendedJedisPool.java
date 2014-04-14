@@ -24,7 +24,9 @@
  */
 package org.helios.rindle.store.redis;
 
+import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.helios.rindle.store.ConnectionPool;
 
 import redis.clients.util.Pool;
 
@@ -36,8 +38,10 @@ import redis.clients.util.Pool;
  * <p><code>org.helios.rindle.store.redis.ExtendedJedisPool</code></p>
  */
 
-public class ExtendedJedisPool extends Pool<ExtendedJedis> {
-
+public class ExtendedJedisPool extends Pool<ExtendedJedis> implements ConnectionPool {
+	/** The commons pool pooling the jedis connections */
+	protected final GenericObjectPool<ExtendedJedis> pool;
+	
 	/**
 	 * Creates a new ExtendedJedisPool
 	 * @param poolConfig The apache commons pooling generic pool configuration
@@ -55,6 +59,125 @@ public class ExtendedJedisPool extends Pool<ExtendedJedis> {
 		//super(poolConfig, host, port, timeout, password, database, clientName);
 		super(poolConfig, new ExtendedJedisFactory(host, port, timeout, password,
 				database, clientName, listener));
+		this.pool = internalPool;
+	}
+	
+	/**
+	 * Returns the pool instrumentation
+	 * @return the pool instrumentation
+	 */
+	public ConnectionPool getConnectionPool() {
+		return this;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getNumActive()
+	 */
+	@Override
+	public int getNumActive() {
+		return pool.getNumActive();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getNumIdle()
+	 */
+	@Override
+	public int getNumIdle() {
+		return pool.getNumIdle();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getNumWaiters()
+	 */
+	@Override
+	public int getNumWaiters() {
+		return pool.getNumWaiters();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getBorrowedCount()
+	 */
+	@Override
+	public long getBorrowedCount() {
+		return pool.getBorrowedCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getCreatedCount()
+	 */
+	@Override
+	public long getCreatedCount() {
+		return pool.getCreatedCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getDestroyedCount()
+	 */
+	@Override
+	public long getDestroyedCount() {
+		return pool.getDestroyedCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getMaxBorrowWaitTime()
+	 */
+	@Override
+	public long getMaxBorrowWaitTime() {
+		return pool.getMaxBorrowWaitTimeMillis();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getMaxTotal()
+	 */
+	@Override
+	public long getMaxTotal() {
+		return pool.getMaxTotal();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getReturnedCount()
+	 */
+	@Override
+	public long getReturnedCount() {
+		return pool.getReturnedCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getMaxWait()
+	 */
+	@Override
+	public long getMaxWait() {
+		return pool.getMaxWaitMillis();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getMeanActiveTime()
+	 */
+	@Override
+	public long getMeanActiveTime() {
+		return pool.getMeanActiveTimeMillis();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.ConnectionPool#getMeanBorrowWaitTime()
+	 */
+	@Override
+	public long getMeanBorrowWaitTime() {
+		return pool.getMeanBorrowWaitTimeMillis();
+	}
+
+	
+	
 }

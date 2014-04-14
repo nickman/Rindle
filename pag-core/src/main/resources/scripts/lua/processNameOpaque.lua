@@ -1,27 +1,64 @@
+--redis.call('PUBLISH', 'RINDLELOG', "Calling processNameOpaque[" .. KEYS[1] .. ", " .. KEYS[2] .. "]")
+rlog.p("Calling processNameOpaque[" .. KEYS[1] .. ", " .. KEYS[2] .. "]")
 local metricName = KEYS[1]
 local opaqueKey = KEYS[2]
 
-if(metricName == nil and opaqueKey == nil) then 
+if(metricName == 'NULL' and opaqueKey == 'NULL') then 
 	return -1
 end
 
-local mnId = (metricName ~= nil and redis.call('get',metricName) or nil)
-local okId = (opaqueKey ~= nil and redis.call('get', opaqueKey) or nil)
+--local mnId = (metricName ~= 'NULL' and redis.call('get',metricName) or nil)
+--local okId = (opaqueKey ~= 'NULL' and redis.call('get', opaqueKey) or nil)
 
-rlog.info('MnId:', mnId, ' OkId:', okId)
+local mnId = redis.call('get',metricName)
+local okId = redis.call('get', opaqueKey)
 
-local gid = redis.call('incr','gidcounter')
+
+local gid = nil;
+
+if(mnId ~= nil and okId ~= nil) then 
+	if(mnId ~= okId) then
+		rlog.error('Metric GID Mismatch Name:' , mnId , 'Opaque:' , okId)
+		redis.error_reply('Metric GID Mismatch Name:' .. rlog.ts(mnId) .. 'Opaque:' .. rlog.ts(okId));
+	end;
+	return mnId;
+end;
+
+if(mnId == nil and okId == nil) then 
+	gid = redis.call('incr','gidcounter')
+else
+	gid = ((mnId ~= nil and mnId) or okId)
+end
+
+rlog.debug('One null: MnId:', mnId, ' OkId:', okId, 'GID:', gid)
 
 if(metricName ~= nil and opaqueKey ~= nil) then
+	-- Both new
 	redis.call('hmset', gid, 'N', metricName, 'O', opaqueKey)
 	redis.call('set', opaqueKey, gid)
 	redis.call('set', metricName, gid);
 elseif(metricName ~= nil) then 
-	redis.call('hmset', gid, 'N', metricName)
-	redis.call('set', metricName, gid);
+	-- metric name was not null
+	if(mnId ~= nil) then
+		-- metric was assigned, opaque was not. Nothing to do
+		rlog.debug('Metric Name Already Assigned: [', metricName, ']:', mnId); 		
+	else 
+		-- metric was not assigned		
+		redis.call('hmset', gid, 'N', metricName)
+		redis.call('set', metricName, gid);
+		rlog.debug('Metric Name New: [', metricName, ']:', mnId); 		
+	end
 elseif(opaqueKey ~= nil) then 
-	redis.call('hmset', gid, 'O', opaqueKey)
-	redis.call('set', opaqueKey, gid)
+	-- opaque key was not null
+	if(okId ~= nil) then
+		-- opaque key was assigned, metric name was not. Nothing to do
+		rlog.debug('Opaque Key Already Assigned: [', opaqueKey, ']:', okId); 		
+	else 
+		-- opaque key was not assigned		
+		redis.call('hmset', gid, 'O', opaqueKey)
+		redis.call('set', opaqueKey, gid)
+		rlog.debug('Opaque Key New: [', opaqueKey, ']:', okId); 		
+	end
 end
 
 

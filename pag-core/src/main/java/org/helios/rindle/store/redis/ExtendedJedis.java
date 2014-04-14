@@ -25,6 +25,7 @@
 package org.helios.rindle.store.redis;
 
 import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 import redis.clients.jedis.BinaryJedis;
@@ -50,6 +51,35 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 	/** The client info for this jedis connection */
 	protected final ClientInfo clientInfo;
 	
+	/** A byte buffer for converting primitives */
+	protected final ByteBuffer converter = ByteBuffer.allocate(8);
+	
+//	protected final ThreadLocal<ByteBuffer> longConverter = new ThreadLocal<ByteBuffer>() {
+//		@Override
+//		protected ByteBuffer initialValue() {
+//			return ByteBuffer.allocate(8);
+//		}
+//	};
+//	
+	/**
+	 * Converts the passed long to a byte array
+	 * @param key The long to convert 
+	 * @return the long as a byte array
+	 */
+	public byte[] longToBytes(long key) {
+		return converter.putLong(0, key).array();
+	}
+	
+	/**
+	 * Converts the passed int to a byte array
+	 * @param key The int to convert 
+	 * @return the int as a byte array
+	 */
+	public byte[] intToBytes(int key) {
+		return converter.putInt(0, key).array();
+	}
+	
+	
 	
 	
 	/**
@@ -70,6 +100,7 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 		clientSetname(clientName.getBytes(ClientInfo.CHARSET));
 		clientInfo = new ClientInfo(clientName, addressKey, this);
 		clientInfo.update(RedisClientStat.extract(clientName, clientList()));
+		converter.position(0);
 	}
 	
 	/**

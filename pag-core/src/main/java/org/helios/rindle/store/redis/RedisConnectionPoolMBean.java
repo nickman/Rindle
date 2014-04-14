@@ -22,27 +22,19 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.rindle;
+package org.helios.rindle.store.redis;
 
-import javax.management.MXBean;
+import org.helios.rindle.RindleService;
+import org.helios.rindle.store.ConnectionPool;
 
 /**
- * <p>Title: LoggerControl</p>
- * <p>Description: Defines a JMX interface used to manage attributes of a service's logger</p> 
+ * <p>Title: RedisConnectionPoolMBean</p>
+ * <p>Description: MXBean interface for the redis connection pool</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.rindle.LoggerControl</code></p>
+ * <p><code>org.helios.rindle.store.redis.RedisConnectionPoolMBean</code></p>
  */
-@MXBean
-public interface LoggerControl {
-	/**
-	 * Returns the current level of the logger
-	 * @return the current level of the logger
-	 */
-	public String getLevel();
-	/**
-	 * Sets the current level of the logger
-	 * @param levelName the level name to set to
-	 */
-	public void setLevel(String levelName);
+
+public interface RedisConnectionPoolMBean extends RindleService, ConnectionPool {
+
 }

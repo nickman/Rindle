@@ -1,4 +1,4 @@
-local _rlog = {}
+local rlog = {}
 
 rlog.TRACE = "TRACE"
 rlog.DEBUG = "DEBUG"
@@ -64,6 +64,10 @@ rlog.tabToString = function(tab, maxDepth, valueDelimiter, lineDelimiter, indent
     return result
 end
 
+rlog.p = function(msg)
+    redis.call('PUBLISH', 'RINDLELOG', msg);
+end;
+
 rlog.ts = function(obj) 
 	if(obj == nil) then return 'null' end
 	if(type(obj) ~= 'table') then return tostring(obj) end
@@ -75,12 +79,13 @@ rlog.getLevel = function()
 	return rlog.LOG_LEVEL_DECODES[rlog.LEVEL];
 end	
 
-rlog._log = function(xlevel, ...) 
+rlog._log = function(...) 
 	local msg = ''		
 	for i,v in ipairs(arg) do
 		msg = msg .. rlog.ts(v)
 	end
-	redis.call('PUBLISH', 'RINDLELOG:' .. tostring(redis.call('CLIENT', 'GETNAME')), msg);
+	--redis.call('PUBLISH', 'RINDLELOG:' .. tostring(redis.call('CLIENT', 'GETNAME')), msg);
+    redis.call('PUBLISH', 'RINDLELOG', msg);
 	return msg;
 end;
 

@@ -24,25 +24,15 @@
  */
 package org.helios.rindle;
 
-import javax.management.MXBean;
-
 /**
- * <p>Title: LoggerControl</p>
- * <p>Description: Defines a JMX interface used to manage attributes of a service's logger</p> 
+ * <p>Title: AbstractRindleServiceMXBean</p>
+ * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.rindle.LoggerControl</code></p>
+ * <p><code>org.helios.rindle.AbstractRindleServiceMXBean</code></p>
  */
-@MXBean
-public interface LoggerControl {
-	/**
-	 * Returns the current level of the logger
-	 * @return the current level of the logger
-	 */
-	public String getLevel();
-	/**
-	 * Sets the current level of the logger
-	 * @param levelName the level name to set to
-	 */
-	public void setLevel(String levelName);
+
+public interface AbstractRindleServiceMXBean extends LoggerControl,
+		ServiceControl {
+
 }

@@ -187,7 +187,7 @@ public class RedisTest {
 			byte[] m = s.getBytes();
 			byte[] o = iter.next().op;
 //			byte[] o = null;
-//			jedis.evalsha(shaBytes, Arrays.asList(m, o), null);
+			jedis.evalsha(shaBytes, Arrays.asList(m, o), null);
 //			jedis.evalsha(shaBytes, Arrays.asList(m), null);
 			pipe.evalsha(shaStr, Arrays.asList(new String(m, CHARSET), new String(o, CHARSET)), EMPTY);			
 		}

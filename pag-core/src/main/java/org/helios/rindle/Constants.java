@@ -74,7 +74,7 @@ public class Constants {
 	/** The config property name for the default JMX ObjectName domain */
 	public static final String JMX_DOMAIN_PREFIX = "helios.rindle.jmx.domain";
 	/** The default value for the registry period map initial size */
-	public static final String DEFAULT_JMX_DOMAIN_PREFIX = "helios.rindle";
+	public static final String DEFAULT_JMX_DOMAIN_PREFIX = "org.helios.rindle";
 	
 	// ===========================================================================================	
 	//		IStore Config

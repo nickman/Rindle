@@ -43,5 +43,11 @@ public interface RindleService extends Service {
 	 */
 	public Collection<RindleService> getDependentServices();
 	
+	/**
+	 * Adds an array of dependent services
+	 * @param dependencies the services to add
+	 */
+	public void addDependentServices(RindleService...dependencies);
+	
 	
 }

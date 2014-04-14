@@ -27,22 +27,17 @@ package org.helios.rindle;
 import javax.management.MXBean;
 
 /**
- * <p>Title: LoggerControl</p>
- * <p>Description: Defines a JMX interface used to manage attributes of a service's logger</p> 
+ * <p>Title: ServiceControl</p>
+ * <p>Description: Defines the JMX interface to the guava service</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.rindle.LoggerControl</code></p>
+ * <p><code>org.helios.rindle.ServiceControl</code></p>
  */
 @MXBean
-public interface LoggerControl {
+public interface ServiceControl {
 	/**
-	 * Returns the current level of the logger
-	 * @return the current level of the logger
+	 * Returns the state of the service
+	 * @return the state of the service
 	 */
-	public String getLevel();
-	/**
-	 * Sets the current level of the logger
-	 * @param levelName the level name to set to
-	 */
-	public void setLevel(String levelName);
+	public String getState();
 }
