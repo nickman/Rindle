@@ -85,54 +85,52 @@ rlog.getLevel = function()
 	return rlog.LOG_LEVEL_DECODES[rlog.LEVEL]
 end	
 
-rlog._log = function(...) 
-	local msg = ''		
-    
-	for i,v in ipairs(arg) do        
-		msg = msg .. rlog.ts(v[i])
+rlog._log = function(xlevel, ...)
+	if(rlog.LEVEL > xlevel) then return nil end;
+	local msg = ''
+	local arg = {...}		
+	for i,v in ipairs(arg) do
+		if(type(v)=='table') then
+			for x,y in ipairs(v) do
+				msg = msg .. rlog.ts(y)
+			end
+		else 
+			msg = msg .. rlog.ts(v)
+		end
 	end	
+	local event = {}
+	event.l = xlevel
+	event.m = msg
+    -- redis.call('PUBLISH', 'RINDLELOG', cjson.encode(event))
     redis.call('PUBLISH', 'RINDLELOG', msg)
 	return msg
 end
 
 rlog.trace = function(...) 
-	if(rlog.LEVEL <= 1) then
-		rlog._log(arg)
-	end
+	rlog._log(1, arg)
 end
 
 
 rlog.debug = function(...) 
-	if(rlog.LEVEL <= 2) then
-		rlog._log(arg)
-	end
+	rlog._log(2, arg)
 end
 
-rlog.info = function(...) 
-	if(rlog.LEVEL <= 3) then
-		rlog._log(arg)
-	end
+rlog.info = function(...)
+	rlog._log(3, arg) 
 end
 
-rlog.warn = function(...) 
-	if(rlog.LEVEL <= 4) then
-		rlog._log(arg)
-	end
+rlog.warn = function(...)
+	rlog._log(4, arg) 
 end
 
-rlog.error = function(...) 
-	if(rlog.LEVEL <= 5) then
-		rlog._log(arg)
-	end
+rlog.error = function(...)
+	rlog._log(5, arg) 
 end
 
 rlog.fatal = function(...) 
-	if(rlog.LEVEL <= 6) then
-		rlog._log(arg)
-	end
+	rlog._log(6, arg)
 end
 
---local function alex() return 3.1415 end
 rawset(_G, "rlog", rlog)
 
 

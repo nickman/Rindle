@@ -50,6 +50,8 @@ public class RedisStore extends AbstractRindleService implements IStore {
 	protected RedisConnectionPool connectionPool = new RedisConnectionPool();
 	protected ScriptControl scriptControl = null;
 	protected byte[] processNameOpaqueScriptSha = null;
+	protected byte[] getMetricDefsScriptSha = null;
+	
 	
 	/** The default platform charset */
 	public static final Charset CHARSET = Charset.defaultCharset();
@@ -92,9 +94,21 @@ public class RedisStore extends AbstractRindleService implements IStore {
 			@Override
 			public long[] redisTask(ExtendedJedis jedis) throws Exception {			
 				Object result = scriptControl.invokeScript(jedis, processNameOpaqueScriptSha, 2, strToBytes(name), nvl(opaqueKey));
-				if(result==null) return new long[]{-1L};
+//				if(result==null) return new long[]{-1L};
 				if(result instanceof Long) return new long[]{(Long)result};
 				if(result instanceof byte[]) return new long[]{Long.parseLong(new String((byte[])result))};
+				if(result instanceof ArrayList) {
+					ArrayList<?> results = (ArrayList<?>)result;
+					if(results.isEmpty()) return new long[] {-1L};
+					int size = results.size();
+					long[] a = new long[size];
+					for(int i = 0; i < size; i++) {
+						a[i] = jedis.bytesToLong((byte[])results.get(i));
+								//Long.parseLong(new String((byte[])results.get(i)));
+					}
+					return a;
+//					log.info("Results: type:{} data:{}", results.iterator().next().getClass().getName(), results)  ; 
+				}
 				throw new Exception("Unrecognized type: [" + result.getClass().getName() + "]");
 			}
 		});
@@ -109,8 +123,18 @@ public class RedisStore extends AbstractRindleService implements IStore {
 		connectionPool.redisTask(new RedisTask<Void>() {
 			@Override
 			public Void redisTask(ExtendedJedis jedis) throws Exception {
-				jedis.flushAll();
-				return null;
+				final int timeout = jedis.getSocketTimeoutMillis();
+				try {
+					jedis.setSocketTimeoutMillis(10000);
+					jedis.flushAll();
+					return null;
+				} catch (Exception ex) {
+					throw new RuntimeException("Flushall failed", ex);
+				} finally {
+					try { jedis.setSocketTimeoutMillis(timeout); } catch (Exception ex) {
+						
+					}
+				}
 			}
 		});
 		
@@ -157,14 +181,16 @@ public class RedisStore extends AbstractRindleService implements IStore {
 					@Override
 					public void running() {
 						processNameOpaqueScriptSha = scriptControl.getScriptSha("processNameOpaque.lua");
-						log.info("processNameOpaqueScriptSha: [{}]", processNameOpaqueScriptSha);
+						getMetricDefsScriptSha = scriptControl.getScriptSha("getMetricDefs.lua");
+//						log.info("processNameOpaqueScriptSha: [{}]", processNameOpaqueScriptSha);
 						service.notifyStarted();
 						super.running();
 					}
 				}, RindleMain.getInstance().getThreadPool());
 				if(scriptControl.isRunning()) {
 					processNameOpaqueScriptSha = scriptControl.getScriptSha("processNameOpaque.lua");
-					log.info("processNameOpaqueScriptSha: [{}]", processNameOpaqueScriptSha);
+					getMetricDefsScriptSha = scriptControl.getScriptSha("getMetricDefs.lua");
+//					log.info("processNameOpaqueScriptSha: [{}]", processNameOpaqueScriptSha);
 					service.notifyStarted();
 				}
 //				connectionPool.pubSub.subscribe("RINDLELOG:" + connectionPool.pubSub.getClientInfo().getName());
@@ -232,6 +258,60 @@ public class RedisStore extends AbstractRindleService implements IStore {
 		Collection<RindleService> services = new ArrayList<RindleService>();
 		services.add(connectionPool);
 		return services;
+	}
+	
+	private static final byte[] NAME_KEY = "N".getBytes(CHARSET);
+	private static final byte[] OPAQUE_KEY = "O".getBytes(CHARSET);
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getMetricName(long)
+	 */
+	@Override
+	public String getMetricName(final long globalId) {
+		return connectionPool.redisTask(new RedisTask<String>() {
+			@Override
+			public String redisTask(ExtendedJedis jedis) throws Exception {
+				byte[] bytes = jedis.hget(jedis.longToBytes(globalId), NAME_KEY);
+				if(bytes==null) return null;
+				return new String(bytes, CHARSET);
+			}
+		});
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getOpaqueKey(long)
+	 */
+	@Override
+	public byte[] getOpaqueKey(final long globalId) {
+		return connectionPool.redisTask(new RedisTask<byte[]>() {
+			@Override
+			public byte[] redisTask(ExtendedJedis jedis) throws Exception {
+				return jedis.hget(jedis.longToBytes(globalId), OPAQUE_KEY);
+			}
+		});
+	}
+
+	@Override
+	public String getMetrics(final long... globalIds) {
+		if(globalIds==null || globalIds.length==0) return "[]";
+		return connectionPool.redisTask(new RedisTask<String>() {
+			@Override
+			public String redisTask(ExtendedJedis jedis) throws Exception {
+				byte[][] globalIdBytes = new byte[globalIds.length][];
+				for(int i = 0; i < globalIds.length; i++) {
+					globalIdBytes[i] =  Long.toString(globalIds[i]).getBytes(CHARSET);
+				}
+				return new String((byte[])jedis.evalsha(getMetricDefsScriptSha, globalIds.length, globalIdBytes), CHARSET);
+			}
+		});
+	}
+
+	@Override
+	public long[] getGlobalIds(String metricNamePattern) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 }

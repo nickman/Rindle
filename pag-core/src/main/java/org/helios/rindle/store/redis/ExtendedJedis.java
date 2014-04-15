@@ -25,6 +25,7 @@
 package org.helios.rindle.store.redis;
 
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -52,23 +53,30 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 	/** The client info for this jedis connection */
 	protected final ClientInfo clientInfo;
 	
-	/** A byte buffer for converting primitives */
-	protected final ByteBuffer converter = ByteBuffer.allocate(8);
+	/** The client socket for this connection */
+	protected final Socket socket;
+	/** A byte buffer for converting longs */
+	protected final ByteBuffer longConverter = ByteBuffer.allocate(8);
+	/** A byte buffer for converting ints */
+	protected final ByteBuffer intConverter = ByteBuffer.allocate(4);
 	
-//	protected final ThreadLocal<ByteBuffer> longConverter = new ThreadLocal<ByteBuffer>() {
-//		@Override
-//		protected ByteBuffer initialValue() {
-//			return ByteBuffer.allocate(8);
-//		}
-//	};
-//	
 	/**
 	 * Converts the passed long to a byte array
 	 * @param key The long to convert 
 	 * @return the long as a byte array
 	 */
 	public byte[] longToBytes(long key) {
-		return converter.putLong(0, key).array();
+		return longConverter.putLong(0, key).array();
+	}
+
+	/**
+	 * Converts a byte array to a long
+	 * @param bytes an 8 byte byte array
+	 * @return the long value
+	 */
+	public long bytesToLong(byte[] bytes) {
+		if(bytes==null) throw new IllegalArgumentException("Passed byte array was null");
+		return Long.parseLong(new String(bytes));
 	}
 	
 	/**
@@ -77,9 +85,18 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 	 * @return the int as a byte array
 	 */
 	public byte[] intToBytes(int key) {
-		return converter.putInt(0, key).array();
+		return intConverter.putInt(0, key).array();
 	}
 	
+	/**
+	 * Converts a byte array to an int
+	 * @param bytes an 4 byte byte array
+	 * @return the int value
+	 */
+	public int bytesToInt(byte[] bytes) {
+		if(bytes==null) throw new IllegalArgumentException("Passed byte array was null");
+		return Integer.parseInt(new String(bytes));
+	}
 	
 	
 	
@@ -96,12 +113,36 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 		this.pool = pool;
 		this.clientName = clientName;
 		connect();		
-		Socket socket = this.getClient().getSocket();
+		socket = this.getClient().getSocket();
 		addressKey = String.format("%s:%s", socket.getLocalAddress().getHostAddress(), socket.getLocalPort());
 		clientSetname(clientName.getBytes(ClientInfo.CHARSET));
 		clientInfo = new ClientInfo(clientName, addressKey, this);
 		clientInfo.update(RedisClientStat.extract(clientName, clientList()));
-		converter.position(0);
+		longConverter.position(0);
+	}
+	
+	/**
+	 * Sets the current socket timeout on this connection's socket
+	 * @param timeout the socket timeout in ms.
+	 */
+	public void setSocketTimeoutMillis(int timeout) {
+		try {
+			socket.setSoTimeout(timeout);
+		} catch (SocketException e) {
+			throw new RuntimeException("Failed to set timeout on Socket [" + socket + "]", e);
+		}
+	}
+	
+	/**
+	 * Returns the current socket timeout on this connection's socket
+	 * @return the socket timeout in ms.
+	 */
+	public int getSocketTimeoutMillis() {
+		try {
+			return socket.getSoTimeout();
+		} catch (SocketException e) {
+			throw new RuntimeException("Failed to get timeout on Socket [" + socket + "]", e);
+		}		
 	}
 	
 	/**

@@ -62,4 +62,31 @@ public interface IStore extends RindleService {
 	 */
 	public long getGlobalId(byte[] opaqueKey);
 	
+	/**
+	 * Returns the metric name for the passed global id
+	 * @param globalId The global id of the metric
+	 * @return The metric name or null if the name was not found
+	 */
+	public String getMetricName(long globalId);
+	
+	/**
+	 * Returns the opaque key for the passed global id
+	 * @param globalId The global id of the metric
+	 * @return The opaque key or null if the name was not found
+	 */
+	public byte[] getOpaqueKey(long globalId);
+	
+	/**
+	 * Returns the full metric definitions for the passed global ids in JSON
+	 * @param globalIds The global ids to get JSON definitions for
+	 * @return A JSON string
+	 */
+	public String getMetrics(long...globalIds);
+	
+	/**
+	 * Returns the global ids for the passed metric name pattern
+	 * @param metricNamePattern The pattern of the metric name
+	 * @return an array of global ids
+	 */
+	public long[] getGlobalIds(String metricNamePattern);
 }
