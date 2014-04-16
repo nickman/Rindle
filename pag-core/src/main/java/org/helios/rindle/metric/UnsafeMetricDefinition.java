@@ -285,8 +285,9 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe {
 		}
 		byte[] ok = getOpaqueKey();
 		if (ok != null) {
-			builder.append("opaqueKey:");
-			builder.append(ok.length);
+			builder.append("opaqueKey:[");
+			builder.append(MetricSerialization.base64EncodeToString(ok));
+			builder.append("]");
 		}
 		if(ok==null && name!=null) {
 			builder.deleteCharAt(builder.length()-1);

@@ -110,7 +110,7 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 	}
 	
 	/**
-	 * Encodes the passed bytes into Base 64 and returns the new decoded array
+	 * Decodes the passed bytes from Base 64 and returns the new decoded array
 	 * @param bytes The bytes to decode
 	 * @return the decoded bytes
 	 */

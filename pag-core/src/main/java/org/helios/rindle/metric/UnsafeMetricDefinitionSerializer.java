@@ -25,9 +25,9 @@
 package org.helios.rindle.metric;
 
 import java.io.IOException;
+import java.util.Random;
 
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.handler.codec.base64.Base64;
+import cern.colt.Arrays;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -82,7 +82,8 @@ public class UnsafeMetricDefinitionSerializer extends JsonSerializer<IMetricDefi
 			jgen.writeStringField("n", name);
 		}
 		if(okey!=null) {
-			jgen.writeBinaryField("o", Base64.encode(ChannelBuffers.wrappedBuffer(okey)).array());
+			//jgen.writeBinaryField("o", Base64.encode(ChannelBuffers.wrappedBuffer(okey)).array());
+			jgen.writeBinaryField("o", okey);
 		}
 		jgen.writeEndObject();
 		jgen.flush();
@@ -90,21 +91,33 @@ public class UnsafeMetricDefinitionSerializer extends JsonSerializer<IMetricDefi
 	
 	public static void main(String[] args) {
 		log("Test Metric Ser");
+		byte[] okey = new byte[10];
+		Random r = new Random(System.currentTimeMillis());
+		r.nextBytes(okey);
 		IMetricDefinition[] metrics = {
-				new UnsafeMetricDefinition(54, "FooBar", "FooBar".getBytes()),
-				new UnsafeMetricDefinition(77, "MeToo", "Yoyo".getBytes())
+				
+				new UnsafeMetricDefinition(77, "MeToo", okey),
+				new UnsafeMetricDefinition(54, "FooBar", "FooBar".getBytes())
 		};
 		
 		ObjectMapper jsonMapper = new ObjectMapper();
 		SimpleModule module = new SimpleModule();
-		module.addSerializer(IMetricDefinition.class, new UnsafeMetricDefinitionSerializer());
+		module.addSerializer(IMetricDefinition.class, new MetricSerialization.UnsafeMetricDefinitionSerializer());
 		module.addDeserializer(IMetricDefinition.class, new MetricSerialization.UnsafeMetricDefinitionDeserializer());
 		jsonMapper.registerModule(module);
 		try {
-//			String s = jsonMapper.writeValueAsString(metrics);
-//			log(s);
-			String text = "[{\"id\":54,\"ts\":1397644799993,\"n\":\"FooBar\",\"o\":\"Um05dlFtRnk=\"},{\"id\":77,\"ts\":1397644799993,\"n\":\"MeToo\",\"o\":\"V1c5NWJ3PT0A\"}]";
-			jsonMapper.readValue(text, IMetricDefinition[].class);
+			String s = jsonMapper.writeValueAsString(metrics);
+			log(s);
+//			String text = "[{\"id\":54,\"ts\":1397644799993,\"n\":\"FooBar\",\"o\":\"Um05dlFtRnk=\"},{\"id\":77,\"ts\":1397644799993,\"n\":\"MeToo\",\"o\":\"V1c5NWJ3PT0A\"}]";
+			IMetricDefinition[] deser = jsonMapper.readValue(s, IMetricDefinition[].class); 
+			log(Arrays.toString(deser));
+			log("========================================");
+			s = jsonMapper.writeValueAsString(deser);
+			log(s);
+			log("========================================");
+			for(int i = 0; i < deser.length; i++) {
+				log("Metric 1:" + deser[i].equals(metrics[i]));
+			}
 		} catch(Exception x) {
 			x.printStackTrace(System.err);
 		}
