@@ -78,7 +78,7 @@ public class RedisConstants {
 	/** The configuration property name for the Redis maximum total number of connections per pool  */
 	public static final String REDIS_MAX_TOTAL_CONF = "helios.rindle.redis.maxtotal";
 	/** The default configuration for the Redis maximum total number of connections per connection pool  */
-	public static final int DEFAULT_REDIS_MAX_TOTAL = 5;
+	public static final int DEFAULT_REDIS_MAX_TOTAL = 10;
 
 	/** The configuration property name for the Redis minimum idle number of connections per pool  */
 	public static final String REDIS_MIN_IDLE_CONF = "helios.rindle.redis.minidle";

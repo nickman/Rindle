@@ -49,10 +49,11 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe {
 	/**
 	 * Creates a new UnsafeMetricDefinition
 	 * @param globalId The global id of the metric
+	 * @param timestamp The creation timestamp of this metric, or -1L if the metric is new, in which case the currnt time will be substituted
 	 * @param name The metric name
 	 * @param opaqueKey The opaque key
 	 */
-	protected UnsafeMetricDefinition(long globalId, String name, byte[] opaqueKey) {		
+	public UnsafeMetricDefinition(long globalId, long timestamp, String name, byte[] opaqueKey) {		
 		byte[] nameBytes = getBytes(name);
 		byte[] opaqueBytes = getBytes(opaqueKey);
 		int size = BASE_SIZE + nameBytes.length + opaqueBytes.length;
@@ -61,7 +62,7 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe {
 		UnsafeAdapter.putByte(address[0], DELETE_FLAG);
 		UnsafeAdapter.putInt(address[0] + SIZE, size);
 		UnsafeAdapter.putLong(address[0] + ID, globalId);
-		UnsafeAdapter.putLong(address[0] + TIMESTAMP, System.currentTimeMillis());
+		UnsafeAdapter.putLong(address[0] + TIMESTAMP, timestamp!=-1L ? timestamp : System.currentTimeMillis());
 		UnsafeAdapter.putInt(address[0] + NAME_SIZE, nameBytes.length);
 		UnsafeAdapter.putInt(address[0] + OPAQUE_SIZE, opaqueBytes.length);
 		if(nameBytes.length>0) {
@@ -73,7 +74,15 @@ public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe {
 	}
 	
 	
-	
+	/**
+	 * Creates a new UnsafeMetricDefinition with a current timestamp
+	 * @param globalId The global id of the metric
+	 * @param name The metric name
+	 * @param opaqueKey The opaque key
+	 */
+	public UnsafeMetricDefinition(long globalId, String name, byte[] opaqueKey) {		
+		this(globalId, -1L, name, opaqueKey);
+	}
 	
 	/**
 	 * Returns the size of the name

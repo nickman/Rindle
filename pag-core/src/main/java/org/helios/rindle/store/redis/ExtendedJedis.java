@@ -29,6 +29,8 @@ import java.net.SocketException;
 import java.nio.ByteBuffer;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.handler.codec.base64.Base64;
 
 import redis.clients.jedis.BinaryJedis;
 import redis.clients.util.Pool;
@@ -98,6 +100,23 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 		return Integer.parseInt(new String(bytes));
 	}
 	
+	/**
+	 * Encodes the passed bytes into Base 64 and returns the new encoded array
+	 * @param bytes The bytes to encode
+	 * @return the encoded bytes
+	 */
+	public byte[] base64Encode(byte[] bytes) {
+		return Base64.encode(ChannelBuffers.wrappedBuffer(bytes)).array();		
+	}
+	
+	/**
+	 * Encodes the passed bytes into Base 64 and returns the new decoded array
+	 * @param bytes The bytes to decode
+	 * @return the decoded bytes
+	 */
+	public byte[] base64Decode(byte[] bytes) {
+		return Base64.decode(ChannelBuffers.wrappedBuffer(bytes)).array();		
+	}
 	
 	
 	/**

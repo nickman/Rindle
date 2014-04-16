@@ -37,6 +37,9 @@ import org.helios.rindle.store.IStore;
 import org.helios.rindle.store.redis.netty.EmptySubListener;
 import org.helios.rindle.util.StringHelper;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+
 /**
  * <p>Title: RedisStore</p>
  * <p>Description: Redis implementation of the Rindle {@link IStore}.</p> 
@@ -58,6 +61,14 @@ public class RedisStore extends AbstractRindleService implements IStore {
 	
 	/** A constant for a Null string as bytes */
 	private static final byte[] NULL_BYTES = "NULL".getBytes(CHARSET);
+	
+	//public static final ObjectMapper jsonMapper =
+	
+	/** The json node factory */
+	public final JsonNodeFactory nodeFactory = new JsonNodeFactory(false);
+	/** The shared json mapper */
+	public final ObjectMapper jsonMapper = new ObjectMapper();
+
 	
 	/**
 	 * Creates a new RedisStore
@@ -93,7 +104,7 @@ public class RedisStore extends AbstractRindleService implements IStore {
 		return connectionPool.redisTask(new RedisTask<long[]>() {
 			@Override
 			public long[] redisTask(ExtendedJedis jedis) throws Exception {			
-				Object result = scriptControl.invokeScript(jedis, processNameOpaqueScriptSha, 2, strToBytes(name), nvl(opaqueKey));
+				Object result = scriptControl.invokeScript(jedis, processNameOpaqueScriptSha, 2, strToBytes(name), nvl(opaqueKey), String.valueOf(System.currentTimeMillis()).getBytes(CHARSET));
 //				if(result==null) return new long[]{-1L};
 				if(result instanceof Long) return new long[]{(Long)result};
 				if(result instanceof byte[]) return new long[]{Long.parseLong(new String((byte[])result))};

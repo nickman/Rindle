@@ -1,17 +1,34 @@
 redis.call("SELECT", "1")
 rlog.info("Calling getMetricDefs[", KEYS, "]")
-local values = ''
+local values = {}
+
 for i=1, #KEYS do 
-	rlog.info("Fetching:" .. KEYS[i])
     local val = redis.call('HGETALL', KEYS[i])
-    --rlog.info("Pushing:" .. cjson.encode(val))
-    --rlog.info("Pushing:" , val)
+    local id = tonumber(KEYS[i]);
+    local entry = {};
+    entry['id'] = id;
+	local k = nil;
+	local v = nil;           	 	
+    
     if(val ~= nil) then
-    	rlog.info("Pushing:" , cjson.encode(values))
-		values = values .. cjson.encode(values);
-		
+    	for key, val in pairs(val) do
+    		if(key%2==1) then
+				k = val;    		
+    		else 
+    			v = val;
+    			entry[k] = v;
+    		end
+    	end;
+    	--values[KEYS[i]] = entry;
+    	values[#values+1] = entry;
     end    
 end
---rlog.info('JSON:' .. cjson.encode(values))
-return values;
+return cjson.encode(values);
+
+--	// from REDIS: {"3":["O","XYX"],"4":["N","SNA","O","FU"]}
+--	// from Jackson:  {"id":54,"ts":1397602986240,"n":"FooBar","o":"Um05dlFtRnk="}
+--	// [
+--		{"id":54,"ts":1397610322489,"n":"FooBar","o":"Um05dlFtRnk="},
+--		{"id":77,"ts":1397610322489,"n":"MeToo","o":"V1c5NWJ3PT0A"}
+--		]
 

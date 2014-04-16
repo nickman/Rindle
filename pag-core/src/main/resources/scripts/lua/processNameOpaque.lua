@@ -2,7 +2,7 @@ redis.call("SELECT", "1")
 rlog.info("Calling processNameOpaque[" .. KEYS[1] .. ", " .. KEYS[2] .. "]")
 local metricName = KEYS[1]
 local opaqueKey = KEYS[2]
-
+local timestamp = ARGV[1];
 local nilv = function(value) 
 	if(value == nil) then return 'null' end
 	return value
@@ -14,18 +14,9 @@ end
 
 local mnId = (metricName ~= 'NULL' and redis.call('get',metricName) or nil)
 local okId = (opaqueKey ~= 'NULL' and redis.call('get', opaqueKey) or nil)
-
 local gid = nil
-
-
-rlog.info('Keys: MnId:' , nilv(mnId))
-rlog.info('Keys: OkId:', nilv(okId))
-
-
-
-
-
-
+--rlog.info('Keys: MnId:' , nilv(mnId))
+--rlog.info('Keys: OkId:', nilv(okId))
 if(mnId ~= nil and okId ~= nil) then 
 	rlog.info('Neither null')
 	if(mnId ~= okId) then
@@ -48,7 +39,7 @@ rlog.debug('One null: MnId:', mnId, ' OkId:', okId, 'GID:', gid)
 
 if(metricName ~= "NULL" and opaqueKey ~= "NULL") then
 	-- Both new
-	redis.call('hmset', gid, 'N', metricName, 'O', opaqueKey)
+	redis.call('hmset', gid, 'n', metricName, 'o', opaqueKey, 'ts', timestamp)
 	redis.call('set', opaqueKey, gid)
 	redis.call('set', metricName, gid)
 elseif(metricName ~= "NULL") then 
@@ -58,13 +49,13 @@ elseif(metricName ~= "NULL") then
 		-- metric was assigned, opaque was not. Nothing to do
 		--rlog.info('Metric Name Already Assigned: [', metricName, ']:', mnId)
 		if(opaqueKey ~= 'NULL') then
-			redis.call('hmset', mnId, 'O', opaqueKey)
+			redis.call('hmset', mnId, 'o', opaqueKey, 'ts', timestamp)
 			redis.call('set', opaqueKey, mnId)
 		end;
 		return mnId; 		
 	else 
 		-- metric was not assigned		
-		redis.call('hmset', gid, 'N', metricName)
+		redis.call('hmset', gid, 'n', metricName, 'ts', timestamp)
 		redis.call('set', metricName, gid)
 		rlog.debug('Metric Name New: [', metricName, ']:', mnId) 		
 	end
@@ -75,13 +66,13 @@ elseif(opaqueKey ~= "NULL") then
 		-- opaque key was assigned, metric name was not. Nothing to do
 		--rlog.info('Opaque Key Already Assigned: [', opaqueKey, ']:', okId)
 		if(metricName ~= 'NULL') then
-			redis.call('hmset', okId, 'N', metricName)
+			redis.call('hmset', okId, 'n', metricName, 'ts', timestamp)
 			redis.call('set', metricName, okId)
 		end;
 		return okId; 				 		
 	else 
 		-- opaque key was not assigned		
-		redis.call('hmset', gid, 'O', opaqueKey)
+		redis.call('hmset', gid, 'o', opaqueKey, 'ts', timestamp)
 		redis.call('set', opaqueKey, gid)
 		rlog.debug('Opaque Key New: [', opaqueKey, ']:', okId) 		
 	end
