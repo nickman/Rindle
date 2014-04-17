@@ -29,6 +29,9 @@ import org.apache.logging.log4j.Logger;
 import org.helios.rindle.util.unsafe.DeAllocateMe;
 import org.helios.rindle.util.unsafe.UnsafeAdapter;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+
 
 /**
  * <p>Title: UnsafeMetricDefinition</p>
@@ -37,7 +40,8 @@ import org.helios.rindle.util.unsafe.UnsafeAdapter;
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.rindle.store.UnsafeMetricDefinition</code></p>
  */
-
+@JsonSerialize(using=MetricSerialization.UnsafeMetricDefinitionSerializer.class)
+@JsonDeserialize(using=MetricSerialization.UnsafeMetricDefinitionDeserializer.class)
 public class UnsafeMetricDefinition implements IMetricDefinition, DeAllocateMe {
 	/** The native address of the metric definition */
 	protected final long[] address = new long[]{-1L};

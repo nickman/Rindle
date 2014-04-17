@@ -27,18 +27,20 @@ package org.helios.rindle.store.redis;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 
 import javax.management.MXBean;
 
 import org.helios.rindle.AbstractRindleService;
 import org.helios.rindle.RindleService;
 import org.helios.rindle.control.RindleMain;
+import org.helios.rindle.json.JSON;
+import org.helios.rindle.metric.IMetricDefinition;
 import org.helios.rindle.store.IStore;
 import org.helios.rindle.store.redis.netty.EmptySubListener;
 import org.helios.rindle.util.StringHelper;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import org.helios.rindle.util.unsafe.UnsafeAdapter;
 
 /**
  * <p>Title: RedisStore</p>
@@ -51,24 +53,28 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 public class RedisStore extends AbstractRindleService implements IStore {
 	/** The redis connection pool */
 	protected RedisConnectionPool connectionPool = new RedisConnectionPool();
+	/** The redis script invoker */
 	protected ScriptControl scriptControl = null;
+	/** The SHA1 bytes for the process script */
 	protected byte[] processNameOpaqueScriptSha = null;
+	/** The SHA1 bytes for the get metrics script */
 	protected byte[] getMetricDefsScriptSha = null;
-	
-	
+
 	/** The default platform charset */
 	public static final Charset CHARSET = Charset.defaultCharset();
 	
+	/** The metric name key byte value*/
+	private static final byte[] NAME_KEY = "n".getBytes(CHARSET);
+	/** The metric opaque key byte value*/
+	private static final byte[] OPAQUE_KEY = "o".getBytes(CHARSET);
+	/** An empty byte array constant */
+	public static final byte[] EMPTY_BYTE_ARR = {};
+	/** An empty long array constant */
+	public static final long[] EMPTY_LONG_ARR = {};
+	 
+	
 	/** A constant for a Null string as bytes */
 	private static final byte[] NULL_BYTES = "NULL".getBytes(CHARSET);
-	
-	//public static final ObjectMapper jsonMapper =
-	
-	/** The json node factory */
-	public final JsonNodeFactory nodeFactory = new JsonNodeFactory(false);
-	/** The shared json mapper */
-	public final ObjectMapper jsonMapper = new ObjectMapper();
-
 	
 	/**
 	 * Creates a new RedisStore
@@ -175,25 +181,17 @@ public class RedisStore extends AbstractRindleService implements IStore {
 	 * @see com.google.common.util.concurrent.AbstractService#doStart()
 	 */
 	@Override
-	protected void doStart() {
-		
+	protected void doStart() {		
 		final RedisStore service = this;						
 		connectionPool.addListener(new Listener() {
 			@Override
 			public void running() {
-				
 				scriptControl  = connectionPool.getScriptControl();
-				
 				scriptControl.addListener(new Listener(){
-					/**
-					 * {@inheritDoc}
-					 * @see com.google.common.util.concurrent.Service.Listener#running()
-					 */
 					@Override
 					public void running() {
 						processNameOpaqueScriptSha = scriptControl.getScriptSha("processNameOpaque.lua");
 						getMetricDefsScriptSha = scriptControl.getScriptSha("getMetricDefs.lua");
-//						log.info("processNameOpaqueScriptSha: [{}]", processNameOpaqueScriptSha);
 						service.notifyStarted();
 						super.running();
 					}
@@ -201,13 +199,11 @@ public class RedisStore extends AbstractRindleService implements IStore {
 				if(scriptControl.isRunning()) {
 					processNameOpaqueScriptSha = scriptControl.getScriptSha("processNameOpaque.lua");
 					getMetricDefsScriptSha = scriptControl.getScriptSha("getMetricDefs.lua");
-//					log.info("processNameOpaqueScriptSha: [{}]", processNameOpaqueScriptSha);
 					service.notifyStarted();
 				}
-//				connectionPool.pubSub.subscribe("RINDLELOG:" + connectionPool.pubSub.getClientInfo().getName());
-//				connectionPool.pubSub.subscribe("RINDLELOG");
-				connectionPool.pubSub.psubscribe("RINDLE*");
-				
+				connectionPool.pubSub.psubscribe("RINDLE.LOGGING.*");
+				connectionPool.pubSub.subscribe("RINDLE.EVENT.METRIC.NEW");
+				connectionPool.pubSub.subscribe("RINDLE.EVENT.METRIC.UPDATED");
 				connectionPool.pubSub.registerListener(new EmptySubListener() {
 					@Override
 					public void onChannelMessage(String channel, String message) {
@@ -271,8 +267,6 @@ public class RedisStore extends AbstractRindleService implements IStore {
 		return services;
 	}
 	
-	private static final byte[] NAME_KEY = "N".getBytes(CHARSET);
-	private static final byte[] OPAQUE_KEY = "O".getBytes(CHARSET);
 
 	/**
 	 * {@inheritDoc}
@@ -303,26 +297,90 @@ public class RedisStore extends AbstractRindleService implements IStore {
 			}
 		});
 	}
-
-	@Override
-	public String getMetrics(final long... globalIds) {
-		if(globalIds==null || globalIds.length==0) return "[]";
-		return connectionPool.redisTask(new RedisTask<String>() {
+	
+	
+	
+	/**
+	 * Returns the full metric definition JSON in bytes for the passed global ids
+	 * @param globalIds The global ids to get metric definitions for
+	 * @return A byte array of IMetricDefinitions JSON
+	 */
+	public byte[] getMetricsBytes(final long... globalIds) {
+		if(globalIds==null || globalIds.length==0) return EMPTY_BYTE_ARR;
+		return connectionPool.redisTask(new RedisTask<byte[]>() {
 			@Override
-			public String redisTask(ExtendedJedis jedis) throws Exception {
+			public byte[] redisTask(ExtendedJedis jedis) throws Exception {
 				byte[][] globalIdBytes = new byte[globalIds.length][];
 				for(int i = 0; i < globalIds.length; i++) {
 					globalIdBytes[i] =  Long.toString(globalIds[i]).getBytes(CHARSET);
 				}
-				return new String((byte[])jedis.evalsha(getMetricDefsScriptSha, globalIds.length, globalIdBytes), CHARSET);
+				return (byte[]) jedis.evalsha(getMetricDefsScriptSha, globalIds.length, globalIdBytes);
 			}
-		});
+		});		
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getMetricsJSON(long[])
+	 */
 	@Override
-	public long[] getGlobalIds(String metricNamePattern) {
-		// TODO Auto-generated method stub
-		return null;
+	public String getMetricsJSON(long... globalIds) {
+		return new String(getMetricsBytes(globalIds), CHARSET);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getMetrics(long[])
+	 */
+	@Override
+	public IMetricDefinition[] getMetrics(long... globalIds) {	
+		try {
+			return JSON.MAP.readValue(getMetricsBytes(globalIds), IMetricDefinition[].class);
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to get metric definitions", ex);
+		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getGlobalIds(java.lang.String)
+	 */
+	@Override
+	public long[] getGlobalIds(final String metricNamePattern) {
+		if(metricNamePattern==null || metricNamePattern.trim().isEmpty()) return EMPTY_LONG_ARR;		
+		List<byte[]> byteKeys =  connectionPool.redisTask(new RedisTask<List<byte[]>>() {
+			@Override
+			public List<byte[]> redisTask(ExtendedJedis jedis) throws Exception {
+				Set<byte[]> keys = jedis.keys(strToBytes(metricNamePattern.trim()));
+				return jedis.mget(keys.toArray(new byte[keys.size()][]));
+			}
+		});		
+		if(byteKeys.isEmpty()) return EMPTY_LONG_ARR;
+		int size = byteKeys.size();
+		long[] keys = new long[size];
+		int i = 0;
+		for(byte[] key: byteKeys) {
+			keys[i] = Long.parseLong(new String(key));
+		}
+		return keys;
+	}
+	
+	
+	/**
+	 * Converts an 8 byte array to a long
+	 * @param bytes The 8 byte array
+	 * @return the converted long
+	 */
+	protected static long byteArrToLong(byte[] bytes) {
+		if(bytes==null || bytes.length != 8) throw new IllegalArgumentException("byteArrToLong requires an 8 byte array but was [" + (bytes==null ? "null" : ("" + bytes.length + ":(" + new String(bytes) + ")")) + "]");
+		long address = -1;
+		try {
+			address = UnsafeAdapter.allocateMemory(8);
+			UnsafeAdapter.copyMemory(bytes, UnsafeAdapter.BYTE_ARRAY_OFFSET, null, 0, 8);
+			return UnsafeAdapter.getLong(address);
+		} finally {
+			UnsafeAdapter.freeMemory(address);
+		}
 	}
 
 }

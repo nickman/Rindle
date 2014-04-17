@@ -26,10 +26,14 @@ package org.helios.rindle.metric;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.Random;
 
+import org.helios.rindle.json.JSON;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.handler.codec.base64.Base64;
 import org.jboss.netty.handler.codec.base64.Base64Dialect;
+
+import cern.colt.Arrays;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
@@ -58,6 +62,16 @@ public class MetricSerialization {
 	public static final String ID_NAME = "n";
 	/** The metric opaque key JSON key */
 	public static final String ID_OPAQUE = "o";
+	
+	
+	/**
+	 * Encodes the passed bytes into Base 64 and returns the new encoded array as a string
+	 * @param bytes The bytes to encode
+	 * @return the encoded bytes as a string
+	 */
+	public static String base64EncodeToString(byte[] bytes) {
+		return Base64.encode(ChannelBuffers.wrappedBuffer(bytes), Base64Dialect.ORDERED).toString(Charset.defaultCharset());
+	}
 	
 	/**
 	 * <p>Title: UnsafeMetricDefinitionSerializer</p>
@@ -89,67 +103,20 @@ public class MetricSerialization {
 		}		
 	}
 	
-	/**
-	 * Encodes the passed bytes into Base 64 and returns the new encoded array
-	 * @param bytes The bytes to encode
-	 * @return the encoded bytes
-	 */
-	public static byte[] base64Encode(byte[] bytes) {
-		return Base64.encode(ChannelBuffers.wrappedBuffer(bytes), Base64Dialect.ORDERED).array();		
-	}
 	
 	/**
-	 * Encodes the passed bytes into Base 64 and returns the new encoded array as a string
-	 * @param bytes The bytes to encode
-	 * @return the encoded bytes as a string
+	 * <p>Title: UnsafeMetricDefinitionDeserializer</p>
+	 * <p>Description: Jackson JSON deserializer for {@link IMetricDefinition}s</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>org.helios.rindle.metric.MetricSerializer.UnsafeMetricDefinitionDeserializer</code></p>
 	 */
-	public static String base64EncodeToString(byte[] bytes) {
-		return Base64.encode(ChannelBuffers.wrappedBuffer(bytes), Base64Dialect.ORDERED).toString(Charset.defaultCharset());
-	}
-	
-	
-	/**
-	 * Decodes the passed bytes from Base 64 and returns the new decoded array
-	 * @param bytes The bytes to decode
-	 * @return the decoded bytes
-	 */
-	public static byte[] base64Decode(byte[] bytes) {
-		return Base64.decode(ChannelBuffers.wrappedBuffer(bytes), Base64Dialect.ORDERED).array();		
-	}
-	
-	/**
-	 * Decodes the passed string from Base 64 and returns the new decoded array
-	 * @param value The string to decode
-	 * @param charset The charset to use to convert
-	 * @return the decoded bytes
-	 */
-	public static byte[] base64Decode(String value, Charset charset) {
-		if(value==null) throw new IllegalArgumentException("The passed string was null");
-
-		return Base64.decode(ChannelBuffers.wrappedBuffer(value.getBytes(charset!=null ? charset : Charset.defaultCharset())), Base64Dialect.ORDERED).array();		
-	}
-	
-	/**
-	 * Decodes the passed string from Base 64 and returns the new decoded array
-	 * @param value The string to decode
-	 * @return the decoded bytes
-	 */
-	public static byte[] base64Decode(String value) {
-		return base64Decode(value, Charset.defaultCharset());		
-	}
-	
-	
-	
-	
-	
-	
 	public static class UnsafeMetricDefinitionDeserializer extends JsonDeserializer<IMetricDefinition> {
 		
-		public static void log(String format, Object...args) {
-			System.out.println(String.format(format, args));
-		}
-		
-		
+		/**
+		 * {@inheritDoc}
+		 * @see com.fasterxml.jackson.databind.JsonDeserializer#deserialize(com.fasterxml.jackson.core.JsonParser, com.fasterxml.jackson.databind.DeserializationContext)
+		 */
 		@Override
 		public IMetricDefinition deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException, JsonProcessingException {
 			ObjectNode node = jp.readValueAsTree();
@@ -182,6 +149,44 @@ public class MetricSerialization {
 		}
 		
 	}
+	
+	public static void main(String[] args) {
+		log("Test Metric Ser");
+		byte[] okey = new byte[10];
+		Random r = new Random(System.currentTimeMillis());
+		r.nextBytes(okey);
+		IMetricDefinition[] metrics = {
+				
+				new UnsafeMetricDefinition(77, "MeToo", okey),
+				new UnsafeMetricDefinition(54, "FooBar", "FooBar".getBytes())
+		};
+		
+//		SimpleModule module = new SimpleModule();
+//		module.addSerializer(IMetricDefinition.class, new MetricSerialization.UnsafeMetricDefinitionSerializer());
+//		module.addDeserializer(IMetricDefinition.class, new MetricSerialization.UnsafeMetricDefinitionDeserializer());
+//		MAP.registerModule(module);
+		try {
+			String s = JSON.MAP.writeValueAsString(metrics);
+			log(s);
+//			String text = "[{\"id\":54,\"ts\":1397644799993,\"n\":\"FooBar\",\"o\":\"Um05dlFtRnk=\"},{\"id\":77,\"ts\":1397644799993,\"n\":\"MeToo\",\"o\":\"V1c5NWJ3PT0A\"}]";
+			IMetricDefinition[] deser = JSON.MAP.readValue(s, IMetricDefinition[].class); 
+			log(Arrays.toString(deser));
+			log("========================================");
+			s = JSON.MAP.writeValueAsString(deser);
+			log(s);
+			log("========================================");
+			for(int i = 0; i < deser.length; i++) {
+				log("Metric 1:" + deser[i].equals(metrics[i]));
+			}
+		} catch(Exception x) {
+			x.printStackTrace(System.err);
+		}
+//		MAP.registerModule(mod);
+	}
+	public static void log(Object msg) {
+		System.out.println(msg);
+	}
+	
 	
 	private MetricSerialization() {
 	}

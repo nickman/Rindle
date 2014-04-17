@@ -101,8 +101,7 @@ rlog._log = function(xlevel, ...)
 	local event = {}
 	event.l = xlevel
 	event.m = msg
-    -- redis.call('PUBLISH', 'RINDLELOG', cjson.encode(event))
-    redis.call('PUBLISH', 'RINDLELOG', msg)
+    redis.call('PUBLISH', 'RINDLE.LOGGING.EVENT', msg)  -- cjson.encode(event)
 	return msg
 end
 

@@ -125,9 +125,11 @@ public class RindleMain extends AbstractRindleService {
 			results = rm.getIstore().getGlobalId("SNA", "FU".getBytes());
 			LOG.info("SNAFU Result: {}", results);
 			
-			LOG.info("JSON:  {}", rm.getIstore().getMetrics(3,4));
+//			LOG.info("JSON:  {}", rm.getIstore().getMetrics(3,4));
 			
-			Thread.sleep(3000);
+			long[] arr = rm.getIstore().getGlobalIds("F*");
+			LOG.info("IDs: {}", Arrays.toString(arr));
+			Thread.sleep(300000000);
 			System.exit(0);
 		} catch (Exception x) {
 			try { Thread.sleep(3000); } catch (Exception xx) {}

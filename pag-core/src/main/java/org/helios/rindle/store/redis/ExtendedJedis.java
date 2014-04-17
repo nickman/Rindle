@@ -29,11 +29,11 @@ import java.net.SocketException;
 import java.nio.ByteBuffer;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.handler.codec.base64.Base64;
 
 import redis.clients.jedis.BinaryJedis;
-import redis.clients.util.Pool;
 
 /**
  * <p>Title: ExtendedJedis</p>
@@ -61,6 +61,14 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 	protected final ByteBuffer longConverter = ByteBuffer.allocate(8);
 	/** A byte buffer for converting ints */
 	protected final ByteBuffer intConverter = ByteBuffer.allocate(4);
+	/** A dynamically sized channel buffer for converting bytes to long arrays */
+	protected final ChannelBuffer arrConverter = ChannelBuffers.dynamicBuffer(128);
+	
+	/** An empty byte array constant */
+	public static final byte[] EMPTY_BYTE_ARR = {};
+	/** An empty long array constant */
+	public static final long[] EMPTY_LONG_ARR = {};
+	
 	
 	/**
 	 * Converts the passed long to a byte array
@@ -79,6 +87,22 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 	public long bytesToLong(byte[] bytes) {
 		if(bytes==null) throw new IllegalArgumentException("Passed byte array was null");
 		return Long.parseLong(new String(bytes));
+	}
+	
+	/**
+	 * Converts the passed byte array to an array of longs
+	 * @param bytes The byte array to convert
+	 * @return an array of longs
+	 */
+	public long[] byteArrayToLongs(byte[] bytes) {
+		if(bytes==null || bytes.length < 8) return EMPTY_LONG_ARR;
+		long[] values = new long[bytes.length/8];
+		arrConverter.clear();
+		arrConverter.writeBytes(bytes);
+		for(int i = 0; i < values.length; i++) {
+			values[i] = arrConverter.readLong();
+		}
+		return values;
 	}
 	
 	/**

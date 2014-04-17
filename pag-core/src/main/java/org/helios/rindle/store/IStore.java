@@ -25,6 +25,7 @@
 package org.helios.rindle.store;
 
 import org.helios.rindle.RindleService;
+import org.helios.rindle.metric.IMetricDefinition;
 
 /**
  * <p>Title: IStore</p>
@@ -81,7 +82,15 @@ public interface IStore extends RindleService {
 	 * @param globalIds The global ids to get JSON definitions for
 	 * @return A JSON string
 	 */
-	public String getMetrics(long...globalIds);
+	public String getMetricsJSON(long...globalIds);
+	
+	/**
+	 * Returns the full metric definition POJOs for the passed global ids
+	 * @param globalIds The global ids to get metric definitions for
+	 * @return An array of IMetrics
+	 */
+	public IMetricDefinition[] getMetrics(long...globalIds);
+	
 	
 	/**
 	 * Returns the global ids for the passed metric name pattern

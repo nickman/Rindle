@@ -8,6 +8,15 @@ local nilv = function(value)
 	return value
 end;
 
+local fireNewMetric = function(gid)
+	redis.call('PUBLISH', 'RINDLE.EVENT.NEWMETRIC', cjson.encode(macros.getMetrics(gid)))
+end
+
+local fireUpdatedMetric = function(gid)
+	redis.call('PUBLISH', 'RINDLE.EVENT.UPDATEDMETRIC', cjson.encode(macros.getMetrics(gid)))
+end
+
+
 if(metricName == 'NULL' and opaqueKey == 'NULL') then 
 	return -1
 end
