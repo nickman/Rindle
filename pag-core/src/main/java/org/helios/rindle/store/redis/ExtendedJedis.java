@@ -27,6 +27,8 @@ package org.helios.rindle.store.redis;
 import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -34,6 +36,9 @@ import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.handler.codec.base64.Base64;
 
 import redis.clients.jedis.BinaryJedis;
+import redis.clients.jedis.ScanParams;
+import redis.clients.jedis.ScanResult;
+import redis.clients.util.SafeEncoder;
 
 /**
  * <p>Title: ExtendedJedis</p>
@@ -69,6 +74,64 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 	/** An empty long array constant */
 	public static final long[] EMPTY_LONG_ARR = {};
 	
+	/** The default scan parameter COUNT  */
+	public static final int DEFAULT_COUNT = 10;
+//	/** A default empty scan result */
+//	private static final ScanResult<byte[]> EMPTY_SCAN_RESULT = new ScanResult<byte[]>("0", Collections.unmodifiableList(new ArrayList<byte[]>(0)));	
+//	/** A zero in bytes constant */
+//	private static final byte[] ZERO_BYTE = "0".getBytes();
+	/**
+	 * Creates a new scan parameter
+	 * @param pattern The match pattern. Ignored if null
+	 * @param count The number of items to retrieve in each call
+	 * @return the scan parameter
+	 */
+	public static ScanParams scanParam(String pattern, int count) {
+		ScanParams sp = new ScanParams();
+		if(pattern!=null) {
+			sp.match(pattern);
+		}
+		sp.count(count);
+		return sp;
+	}
+	
+	/**
+	 * Creates a new scan parameter with the default count
+	 * @param pattern The match pattern
+	 * @return the scan parameter
+	 */
+	public static ScanParams scanParam(String pattern) {
+		return scanParam(pattern, DEFAULT_COUNT);
+	}
+	
+	/**
+	 * Creates a new scan parameter with the default count and no match
+	 * @return the scan parameter
+	 */
+	public static ScanParams scanParam() {
+		return scanParam(null, DEFAULT_COUNT);
+	}
+	
+	
+	
+	/**
+	 * Issues a scan against redis
+	 * @param cursor The cursor
+	 * @param params The parameters
+	 * @return The scan results
+	 */
+	public ScanResult<byte[]> scan(byte[] cursor, ScanParams params) {
+		getClient().scan(cursor, params);
+		List<Object> result = client.getObjectMultiBulkReply();
+		String newcursor = new String((byte[]) result.get(0));
+		List<String> results = new ArrayList<String>();
+		List<byte[]> rawResults = (List<byte[]>) result.get(1);
+		for (byte[] bs : rawResults) {
+		    results.add(SafeEncoder.encode(bs));
+		}
+		return new ScanResult<byte[]>(newcursor, rawResults);
+		
+	}
 	
 	/**
 	 * Converts the passed long to a byte array

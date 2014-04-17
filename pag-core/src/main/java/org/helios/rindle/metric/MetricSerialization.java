@@ -36,6 +36,7 @@ import org.jboss.netty.handler.codec.base64.Base64Dialect;
 import cern.colt.Arrays;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -124,8 +125,8 @@ public class MetricSerialization {
 			if(gidNode==null || !gidNode.isNumber()) throw new IOException("Invalid or missing global ID node");
 			long globalId = gidNode.longValue();
 			JsonNode tsNode = node.get(ID_TIMESTAMP);
-			if(tsNode==null || !gidNode.isNumber()) throw new IOException("Invalid or missing timestamp node");
-			long ts = tsNode.longValue();
+			if(tsNode==null) throw new IOException("Invalid or missing timestamp node");
+			long ts = Long.parseLong(tsNode.textValue());
 			JsonNode nameNode = node.get(ID_NAME);
 			JsonNode opaqueNode = node.get(ID_OPAQUE);
 			String name = null;
@@ -135,7 +136,11 @@ public class MetricSerialization {
 				name = nameNode.textValue();
 			}
 			if(opaqueNode!=null) {
-				opaqueKey = opaqueNode.binaryValue();
+				try {
+					opaqueKey = opaqueNode.binaryValue();
+				} catch (JsonParseException jpe) {
+					opaqueKey = opaqueNode.textValue().getBytes();
+				}
 //				if(opaqueNode.isBinary()) {
 //					opaqueKey = opaqueNode.binaryValue();
 //				} else if(opaqueNode.isTextual()) {

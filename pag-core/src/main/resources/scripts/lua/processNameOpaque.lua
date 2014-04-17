@@ -1,5 +1,5 @@
 redis.call("SELECT", "1")
-rlog.info("Calling processNameOpaque[" .. KEYS[1] .. ", " .. KEYS[2] .. "]")
+rlog.debug("Calling processNameOpaque[" .. KEYS[1] .. ", " .. KEYS[2] .. "]")
 local metricName = KEYS[1]
 local opaqueKey = KEYS[2]
 local timestamp = ARGV[1];
@@ -27,16 +27,12 @@ local gid = nil
 --rlog.info('Keys: MnId:' , nilv(mnId))
 --rlog.info('Keys: OkId:', nilv(okId))
 if(mnId ~= nil and okId ~= nil) then 
-	rlog.info('Neither null')
 	if(mnId ~= okId) then
 		rlog.warn('Metric GID Mismatch Name:' , mnId , 'Opaque:' , okId)
 		return {mnId, okId};
 	end
 	return mnId
 end
-
-
-rlog.info('============== Processing inserts ==================')
 
 if(mnId == nil and okId == nil) then 
 	gid = redis.call('incr','gidcounter')
@@ -54,9 +50,8 @@ if(metricName ~= "NULL" and opaqueKey ~= "NULL") then
 elseif(metricName ~= "NULL") then 
 	-- metric name was not null
 	if(mnId ~= nil) then
-		rlog.info('Metric Name Already Assigned');
+		rlog.debug('Metric Name Already Assigned');
 		-- metric was assigned, opaque was not. Nothing to do
-		--rlog.info('Metric Name Already Assigned: [', metricName, ']:', mnId)
 		if(opaqueKey ~= 'NULL') then
 			redis.call('hmset', mnId, 'o', opaqueKey, 'ts', timestamp)
 			redis.call('set', opaqueKey, mnId)
@@ -71,9 +66,8 @@ elseif(metricName ~= "NULL") then
 elseif(opaqueKey ~= "NULL") then 
 	-- opaque key was not null
 	if(okId ~= nil) then
-		rlog.info('Opaque Key Already Assigned');
+		rlog.debug('Opaque Key Already Assigned');
 		-- opaque key was assigned, metric name was not. Nothing to do
-		--rlog.info('Opaque Key Already Assigned: [', opaqueKey, ']:', okId)
 		if(metricName ~= 'NULL') then
 			redis.call('hmset', okId, 'n', metricName, 'ts', timestamp)
 			redis.call('set', metricName, okId)

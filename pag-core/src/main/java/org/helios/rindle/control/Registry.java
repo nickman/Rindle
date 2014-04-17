@@ -30,13 +30,12 @@ import java.util.Random;
 
 import javax.management.ObjectName;
 
-import org.apache.commons.math3.stat.StatUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
-import org.helios.pag.core.datapoints.Core.DataPoint;
-import org.helios.pag.core.datapoints.Core.DataPoints;
 import org.helios.rindle.Constants;
+import org.helios.rindle.core.datapoints.Core.DataPoint;
+import org.helios.rindle.core.datapoints.Core.DataPoints;
 import org.helios.rindle.period.IPeriodAggregator;
 import org.helios.rindle.period.impl.PeriodAggregatorImpl;
 import org.helios.rindle.util.ConfigurationHelper;
@@ -48,7 +47,6 @@ import org.helios.rindle.util.unsafe.UnsafeAdapter;
 import org.helios.rindle.util.unsafe.collections.LongSlidingWindow;
 
 import cern.colt.list.DoubleArrayList;
-import cern.jet.stat.Descriptive;
 
 
 

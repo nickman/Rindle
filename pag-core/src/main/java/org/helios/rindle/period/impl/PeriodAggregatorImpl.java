@@ -8,11 +8,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
-import org.helios.pag.core.datapoints.Core.DataPoint;
+import org.helios.rindle.core.datapoints.Core.DataPoint;
 import org.helios.rindle.period.IPeriodAggregator;
 import org.helios.rindle.util.unsafe.DeAllocateMe;
 import org.helios.rindle.util.unsafe.UnsafeAdapter;
-import org.helios.rindle.util.unsafe.collections.LongSlidingWindow;
 
 /**
  * <p>Title: PeriodAggregatorImpl</p>

@@ -24,6 +24,8 @@
  */
 package org.helios.rindle.store.redis;
 
+import gnu.trove.set.hash.TLongHashSet;
+
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -59,6 +61,8 @@ public class RedisStore extends AbstractRindleService implements IStore {
 	protected byte[] processNameOpaqueScriptSha = null;
 	/** The SHA1 bytes for the get metrics script */
 	protected byte[] getMetricDefsScriptSha = null;
+	/** The SHA1 bytes for the macros script */
+	protected byte[] macrosScriptSha = null;
 
 	/** The default platform charset */
 	public static final Charset CHARSET = Charset.defaultCharset();
@@ -192,6 +196,7 @@ public class RedisStore extends AbstractRindleService implements IStore {
 					public void running() {
 						processNameOpaqueScriptSha = scriptControl.getScriptSha("processNameOpaque.lua");
 						getMetricDefsScriptSha = scriptControl.getScriptSha("getMetricDefs.lua");
+						macrosScriptSha = scriptControl.getScriptSha("macros.lua");
 						service.notifyStarted();
 						super.running();
 					}
@@ -310,6 +315,7 @@ public class RedisStore extends AbstractRindleService implements IStore {
 		return connectionPool.redisTask(new RedisTask<byte[]>() {
 			@Override
 			public byte[] redisTask(ExtendedJedis jedis) throws Exception {
+				
 				byte[][] globalIdBytes = new byte[globalIds.length][];
 				for(int i = 0; i < globalIds.length; i++) {
 					globalIdBytes[i] =  Long.toString(globalIds[i]).getBytes(CHARSET);
@@ -347,22 +353,20 @@ public class RedisStore extends AbstractRindleService implements IStore {
 	 */
 	@Override
 	public long[] getGlobalIds(final String metricNamePattern) {
-		if(metricNamePattern==null || metricNamePattern.trim().isEmpty()) return EMPTY_LONG_ARR;		
-		List<byte[]> byteKeys =  connectionPool.redisTask(new RedisTask<List<byte[]>>() {
+		if(metricNamePattern==null || metricNamePattern.trim().isEmpty()) return EMPTY_LONG_ARR;	
+		final TLongHashSet globalIds = new TLongHashSet(100); 
+		connectionPool.redisTask(new RedisTask<Void>() {
 			@Override
-			public List<byte[]> redisTask(ExtendedJedis jedis) throws Exception {
-				Set<byte[]> keys = jedis.keys(strToBytes(metricNamePattern.trim()));
-				return jedis.mget(keys.toArray(new byte[keys.size()][]));
+			public Void redisTask(ExtendedJedis jedis) throws Exception {
+				ArrayList<byte[]> results = (ArrayList<byte[]>)jedis.eval("return macros.invokeIdsForPattern()".getBytes(CHARSET), 0, metricNamePattern.getBytes(CHARSET));
+				for(byte[] result: results) {
+					globalIds.add(jedis.bytesToLong(result));
+				}
+				return null;
 			}
 		});		
-		if(byteKeys.isEmpty()) return EMPTY_LONG_ARR;
-		int size = byteKeys.size();
-		long[] keys = new long[size];
-		int i = 0;
-		for(byte[] key: byteKeys) {
-			keys[i] = Long.parseLong(new String(key));
-		}
-		return keys;
+		if(globalIds.isEmpty()) return EMPTY_LONG_ARR;
+		return globalIds.toArray();
 	}
 	
 	
