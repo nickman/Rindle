@@ -206,9 +206,9 @@ public class RedisStore extends AbstractRindleService implements IStore {
 					getMetricDefsScriptSha = scriptControl.getScriptSha("getMetricDefs.lua");
 					service.notifyStarted();
 				}
-				connectionPool.pubSub.psubscribe("RINDLE.LOGGING.*");
+				connectionPool.pubSub.subscribe("RINDLE.LOGGING.EVENT.LOG");
 				connectionPool.pubSub.subscribe("RINDLE.EVENT.METRIC.NEW");
-				connectionPool.pubSub.subscribe("RINDLE.EVENT.METRIC.UPDATED");
+				connectionPool.pubSub.subscribe("RINDLE.EVENT.METRIC.UPDATE");
 				connectionPool.pubSub.registerListener(new EmptySubListener() {
 					@Override
 					public void onChannelMessage(String channel, String message) {
@@ -318,9 +318,11 @@ public class RedisStore extends AbstractRindleService implements IStore {
 				
 				byte[][] globalIdBytes = new byte[globalIds.length][];
 				for(int i = 0; i < globalIds.length; i++) {
-					globalIdBytes[i] =  Long.toString(globalIds[i]).getBytes(CHARSET);
+					globalIdBytes[i] =  Long.toString(globalIds[i]).getBytes(CHARSET);					
 				}
-				return (byte[]) jedis.evalsha(getMetricDefsScriptSha, globalIds.length, globalIdBytes);
+				byte[] b = (byte[]) jedis.evalsha(getMetricDefsScriptSha, globalIds.length, globalIdBytes);
+				log.info("RET JSON: {}", new String(b, CHARSET) );
+				return b;
 			}
 		});		
 	}
