@@ -47,7 +47,7 @@ public interface IStore extends RindleService {
 	 * @param opaqueKey The metric opaque key
 	 * @return The global id or -1 if both the name and opaque key were null
 	 */
-	public long[] getGlobalId(String name, byte[] opaqueKey);
+	public long getGlobalId(String name, byte[] opaqueKey);
 	
 	/**
 	 * Returns the global metric id for the passed name

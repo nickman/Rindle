@@ -29,14 +29,14 @@ import java.util.Map;
 import org.helios.rindle.util.enums.BitMaskedEnum;
 
 /**
- * <p>Title: IntervalOption</p>
+ * <p>Title: Interval</p>
  * <p>Description: An aggregate enumeration of interval options for interval data subscriptions</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.rindle.subscription.criteria.IntervalOption</code></p>
+ * <p><code>org.helios.rindle.subscription.criteria.Interval</code></p>
  */
 
-public enum IntervalOption implements PickOne<IntervalOption> {
+public enum Interval implements PickOne<Interval> {
 	/** The requested interval period in seconds */
 	PERIOD,		// seconds
 	/** The interval retention indicating if min/max/avg bases should be reatined across intervals, or reset */
@@ -45,7 +45,7 @@ public enum IntervalOption implements PickOne<IntervalOption> {
 	DELIVERY;  
 	
 	/** A map of enums keyed by the enum ordinal */
-	public static final Map<Integer, IntervalOption> ORD2ENUM = BitMaskedEnum.Support.generateIntOrdinalMap(IntervalOption.values());
+	public static final Map<Integer, Interval> ORD2ENUM = BitMaskedEnum.Support.generateIntOrdinalMap(Interval.values());
 	
 
 	/**
@@ -53,7 +53,7 @@ public enum IntervalOption implements PickOne<IntervalOption> {
 	 * @see org.helios.rindle.subscription.criteria.PickOne#getDefault()
 	 */
 	@Override
-	public IntervalOption getDefault() {
+	public Interval getDefault() {
 		return PERIOD;
 	}	
 	

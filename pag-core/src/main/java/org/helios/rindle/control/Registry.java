@@ -210,13 +210,52 @@ public class Registry implements RegistryMXBean {
 	}
 	
 	/**
+	 * Acquires the IPeriodAggregator for the passed global id
+	 * @param globalId The global id
+	 * @param forDouble true for a double type, false for a long type
+	 * @return the period aggregator
+	 */
+	public PeriodAggregatorImpl getPeriodAggregator(long globalId, boolean forDouble) {
+		PeriodAggregatorImpl pai = null;
+		if(aggregators.putIfAbsent(globalId, PeriodAggregatorImpl.CONST)==null) {
+			pai = new PeriodAggregatorImpl(forDouble);
+			aggregators.replace(globalId, pai);
+		} else {
+			pai = aggregators.get(globalId);
+		}
+		return pai;
+	}
+	
+	/**
+	 * Process a single value
+	 * @param globalId The global id
+	 * @param value the value to process
+	 * @return The processed aggregator
+	 */
+	public IPeriodAggregator processValue(long globalId, long value) {
+		return getPeriodAggregator(globalId, false).processDataPoint(value);
+	}
+	
+	/**
+	 * Process a single value
+	 * @param globalId The global id
+	 * @param value the value to process
+	 * @return The processed aggregator
+	 */
+	public IPeriodAggregator processValue(long globalId, double value) {
+		return getPeriodAggregator(globalId, true).processDataPoint(value);
+	}
+	
+	
+	
+	/**
 	 * Process a single data point
 	 * @param dataPoint the data point to process
 	 * @return The processed aggregator
 	 */
 	public IPeriodAggregator processDataPoint(DataPoint dataPoint) {
 		final long ID = dataPoint.getGlobalID();
-		PeriodAggregatorImpl pai = null;
+		PeriodAggregatorImpl pai = getPeriodAggregator(dataPoint.getGlobalID(), dataPoint.hasDoubleValue());
 		if(aggregators.putIfAbsent(ID, PeriodAggregatorImpl.CONST)==null) {
 			pai = new PeriodAggregatorImpl(dataPoint.hasDoubleValue());
 			aggregators.replace(ID, pai);

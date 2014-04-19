@@ -36,10 +36,11 @@ import org.helios.rindle.AbstractRindleService;
 import org.helios.rindle.Constants;
 import org.helios.rindle.RindleService;
 import org.helios.rindle.store.IStore;
+import org.helios.rindle.submit.ISubmit;
+import org.helios.rindle.submit.SubmitImpl;
 import org.helios.rindle.util.ConfigurationHelper;
 import org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPool;
 
-import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.ServiceManager;
 
 /**
@@ -60,9 +61,19 @@ public class RindleMain extends AbstractRindleService {
 	/** The main general purpose rindle thread pool */
 	protected final JMXManagedThreadPool threadPool;
 	/** The rindle registry */
-	protected Registry registry;
+	protected Registry registry = Registry.getInstance();
 	/** The rindle istore */
 	protected IStore istore = createIStore();
+	/** The core submitter */
+	protected ISubmit submitter = null;
+	/**
+	 * Returns the 
+	 * @return the submitter
+	 */
+	public ISubmit getSubmitter() {
+		return submitter;
+	}
+
 	/** The rindle service manager */
 	protected ServiceManager serviceManager;
 	
@@ -82,6 +93,7 @@ public class RindleMain extends AbstractRindleService {
 					LOG.info("Rindle Services Starting......");
 					instance.serviceManager.startAsync();
 					instance.serviceManager.awaitHealthy();
+					instance.submitter = new SubmitImpl(instance.registry, instance.istore);
 					LOG.info("********************************");
 				}
 			}
@@ -95,7 +107,6 @@ public class RindleMain extends AbstractRindleService {
 	private RindleMain() {
 		LOG.info("Rindle Core Starting......");
 		threadPool = new JMXManagedThreadPool("main");
-		registry = Registry.getInstance();
 		
 		LOG.info("Rindle Core Started.");
 		addRindleService(this);
@@ -110,25 +121,25 @@ public class RindleMain extends AbstractRindleService {
 			RindleMain rm = getInstance();
 			rm.getIstore().purge();
 			//long result = rm.getIstore().getGlobalId("AAA", "BBB".getBytes());
-			long result = rm.getIstore().getGlobalId("FOO", "BAR".getBytes())[0];
+			long result = rm.getIstore().getGlobalId("FOO", "BAR".getBytes());
 			LOG.info("Foo Result: {}", result);
 			result = rm.getIstore().getGlobalId("XXX");
 			LOG.info("XXX Result: {}", result);
 			result = rm.getIstore().getGlobalId("XYX".getBytes());
 			LOG.info("XYX Result: {}", result);
 			
-			long[] results = rm.getIstore().getGlobalId("XXX", "XYX".getBytes());
-			LOG.info("XXX/XYX Results: {}", Arrays.toString(results));
+			result = rm.getIstore().getGlobalId("XXX", "XYX".getBytes());
+			LOG.info("XXX/XYX Results: {}", result);
 			
 			result = rm.getIstore().getGlobalId("SNA");
 			LOG.info("SNA Result: {}", result);
-			results = rm.getIstore().getGlobalId("SNA", "FU".getBytes());
-			LOG.info("SNAFU Result: {}", results);
+			result = rm.getIstore().getGlobalId("SNA", "FU".getBytes());
+			LOG.info("SNAFU Result: {}", result);
 			
-			LOG.info("METRICS:  {}", rm.getIstore().getMetrics(3,4));
+			LOG.info("METRICS:  {}", Arrays.toString(rm.getIstore().getMetrics(3,4)));
 			LOG.info("JSON:  {}", rm.getIstore().getMetricsJSON(3,4));
 			
-			long[] arr = rm.getIstore().getGlobalIds("F*");
+			long[] arr = rm.getIstore().getGlobalIds("*");
 			LOG.info("IDs: {}", Arrays.toString(arr));
 			Thread.sleep(300000000);
 			System.exit(0);

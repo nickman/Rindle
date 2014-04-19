@@ -40,8 +40,6 @@ import redis.clients.jedis.Jedis;
 public class ScriptControl extends AbstractRindleService {
 	
 	/** The resource root for the util lua scripts */
-	public static final String UTIL_SCRIPT_BASE = "scripts/lua/util";
-	/** The resource root for the lua scripts */
 	public static final String SCRIPT_BASE = "scripts/lua/";
 	/** The format specifier for formatting the SHA1 bytes */
 	public static final String SHA_FORMATTER = "%02x";
@@ -104,13 +102,26 @@ public class ScriptControl extends AbstractRindleService {
 		connectionPool.redisTask(new RedisTask<List<Void>>(){
 			@Override
 			public List<Void> redisTask(ExtendedJedis jedis) throws Exception {
-				jedis.scriptFlush();
+				final int timeout = jedis.getSocketTimeoutMillis();
+				try {
+					jedis.setSocketTimeoutMillis(timeout*10);
+					jedis.scriptFlush();
+				} finally {
+					jedis.setSocketTimeoutMillis(timeout);
+				}
 				return null;
 			}
 		});		
-		
-		loadScriptsFrom(UTIL_SCRIPT_BASE, true);
-		loadScriptsFrom(SCRIPT_BASE, false);
+		String[] folders = getResourceListing(getClass(), SCRIPT_BASE);
+		Arrays.sort(folders);
+		for(String folder: folders) {
+			try {
+				int f = Integer.parseInt(folder.trim());
+				loadScriptsFrom(SCRIPT_BASE + f, f < 0);
+			} catch (Exception x) {
+				log.warn("Invalid script folder name [{}]", folder);
+			}
+		}
 		List<Long> scriptCheck = connectionPool.redisTask(new RedisTask<List<Long>>(){
 			@Override
 			public List<Long> redisTask(ExtendedJedis jedis) throws Exception {

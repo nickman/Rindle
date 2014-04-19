@@ -110,7 +110,7 @@ public class RedisStore extends AbstractRindleService implements IStore {
 	 * @see org.helios.rindle.store.IStore#getGlobalId(java.lang.String, byte[])
 	 */
 	@Override
-	public long[] getGlobalId(final String name, final byte[] opaqueKey) {
+	public long getGlobalId(final String name, final byte[] opaqueKey) {
 		return connectionPool.redisTask(new RedisTask<long[]>() {
 			@Override
 			public long[] redisTask(ExtendedJedis jedis) throws Exception {			
@@ -132,7 +132,7 @@ public class RedisStore extends AbstractRindleService implements IStore {
 				}
 				throw new Exception("Unrecognized type: [" + result.getClass().getName() + "]");
 			}
-		});
+		})[0];
 	}
 	
 	/**
@@ -167,7 +167,7 @@ public class RedisStore extends AbstractRindleService implements IStore {
 	 */
 	@Override
 	public long getGlobalId(String name) {
-		return getGlobalId(name, null)[0];
+		return getGlobalId(name, null);
 	}
 
 	/**
@@ -176,7 +176,7 @@ public class RedisStore extends AbstractRindleService implements IStore {
 	 */
 	@Override
 	public long getGlobalId(byte[] opaqueKey) {
-		return getGlobalId(null, opaqueKey)[0];
+		return getGlobalId(null, opaqueKey);
 	}
 	
 	/**
@@ -217,13 +217,6 @@ public class RedisStore extends AbstractRindleService implements IStore {
 					@Override
 					public void onPatternMessage(String pattern, String channel, String message) {
 						log.info("[{}/@/{}]:{}", pattern, channel, message);
-					}
-				});
-				connectionPool.redisTask(new RedisTask<Void>() {
-					@Override
-					public Void redisTask(ExtendedJedis jedis) throws Exception {
-						
-						return null;
 					}
 				});
 			}
@@ -360,7 +353,8 @@ public class RedisStore extends AbstractRindleService implements IStore {
 		connectionPool.redisTask(new RedisTask<Void>() {
 			@Override
 			public Void redisTask(ExtendedJedis jedis) throws Exception {
-				ArrayList<byte[]> results = (ArrayList<byte[]>)jedis.eval("return macros.invokeIdsForPattern()".getBytes(CHARSET), 0, metricNamePattern.getBytes(CHARSET));
+				@SuppressWarnings("unchecked")
+				ArrayList<byte[]> results = (ArrayList<byte[]>)jedis.eval("return rindle.invokeIdsForPattern()".getBytes(CHARSET), 0, metricNamePattern.getBytes(CHARSET));
 				for(byte[] result: results) {
 					globalIds.add(jedis.bytesToLong(result));
 				}

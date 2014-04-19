@@ -77,7 +77,6 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 	 * @return this aggregator
 	 */
 	public IPeriodAggregator processDataPoint(final DataPoint dataPoint) {
-		final long startTime = System.nanoTime();
 		UnsafeAdapter.runInLock(address[0], new Runnable(){
 			public void run() {
 				final long newCount = increment();
@@ -104,6 +103,52 @@ public class PeriodAggregatorImpl implements IPeriodAggregator, DeAllocateMe {
 						rawData.append(val);
 					}
 				}
+			}
+		}); 
+		return this;
+	}
+	
+	/**
+	 * Processes a new data point into this aggregator
+	 * @param value The value to process
+	 * @return this aggregator
+	 */
+	public IPeriodAggregator processDataPoint(final long value) {
+		UnsafeAdapter.runInLock(address[0], new Runnable(){
+			public void run() {
+				final long newCount = increment();
+					if(value < UnsafeAdapter.getLong(address[0] + MIN)) UnsafeAdapter.putLong(address[0] + MIN, value);
+					if(value > UnsafeAdapter.getLong(address[0] + MAX)) UnsafeAdapter.putLong(address[0] + MAX, value);
+					if(newCount==1) {
+						UnsafeAdapter.putDouble(address[0] + MEAN, value);
+					} else {
+						UnsafeAdapter.putDouble(address[0] + MEAN, avgd(UnsafeAdapter.getDouble(address[0] + MEAN), newCount-1, value));
+					}
+					if(isRawEnabled()) {
+						rawData.append(value);
+					}
+			}
+		}); 
+		return this;
+	}
+	
+	/**
+	 * Processes a new data point into this aggregator
+	 * @param value The value to process
+	 * @return this aggregator
+	 */
+	public IPeriodAggregator processDataPoint(final double value) {
+		UnsafeAdapter.runInLock(address[0], new Runnable(){
+			public void run() {
+				final long newCount = increment();
+				if(value < UnsafeAdapter.getDouble(address[0] + MIN)) UnsafeAdapter.putDouble(address[0] + MIN, value);
+				if(value > UnsafeAdapter.getDouble(address[0] + MAX)) UnsafeAdapter.putDouble(address[0] + MAX, value);
+				if(newCount==1) {
+					UnsafeAdapter.putDouble(address[0] + MEAN, value);
+				} else {
+					UnsafeAdapter.putDouble(address[0] + MEAN, avgd(UnsafeAdapter.getDouble(address[0] + MEAN), newCount-1, value));
+				}
+				if(isRawEnabled()) rawData.append(value);
 			}
 		}); 
 		return this;

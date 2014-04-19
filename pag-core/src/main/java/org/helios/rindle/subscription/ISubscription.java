@@ -24,6 +24,12 @@
  */
 package org.helios.rindle.subscription;
 
+import org.helios.rindle.subscription.criteria.DataContent;
+import org.helios.rindle.subscription.criteria.Delivery;
+import org.helios.rindle.subscription.criteria.Format;
+import org.helios.rindle.subscription.criteria.Interval;
+import org.helios.rindle.subscription.criteria.Retention;
+
 /**
  * <p>Title: ISubscription</p>
  * <p>Description: Defines a subscription to rindle data feeds and events</p> 
@@ -33,5 +39,13 @@ package org.helios.rindle.subscription;
  */
 
 public interface ISubscription {
-
+	public Retention getRetention();
+	public Format getFormat();
+	public Interval getInterval();
+	public Delivery getDelivery();
+	public DataContent[] getDataContents();
+	
+	public long[] getSpecifiedGlobalIds();
+	public long[] getAllGlobalIds();
+	public String[] getPatterns();
 }

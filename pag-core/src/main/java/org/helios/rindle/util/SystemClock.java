@@ -51,6 +51,19 @@ public class SystemClock {
 	}
 	
 	/**
+	 * Sleeps for the specified number of ms.
+	 * @param ms The number of ms. to sleep
+	 */
+	public static void sleep(long ms) {
+		try {
+			Thread.currentThread().join(ms);
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to sleep");
+		}
+	}
+	
+	
+	/**
 	 * Returns the current time in ms.
 	 * @return the current time in ms.
 	 */
