@@ -1,5 +1,10 @@
 local macros = {}
 
+macros.db = 1
+macros.GIDHASH = 'gidhash'  -- gid:json
+macros.NKEY = 'nkey'		-- name:gid
+macros.OKEY = 'okey'		-- opaqueKey:gid
+
 macros.getMetrics = function(...) 
 	local values = {}
 	for i=1, #arg do

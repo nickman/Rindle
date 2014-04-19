@@ -22,23 +22,22 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.rindle.subscriptions.criteria;
+package org.helios.rindle.subscription.criteria;
 
 /**
- * <p>Title: IntervalOptions</p>
- * <p>Description: An aggregate enumeration of interval options for interval data subscriptions</p> 
+ * <p>Title: PickOne</p>
+ * <p>Description: Defines an enum from which only one item is applicable at a time</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.rindle.subscriptions.criteria.IntervalOptions</code></p>
+ * <p><code>org.helios.rindle.subscriptions.criteria.PickOne</code></p>
+ * @param <T> The type of the enum represented
  */
 
-public enum IntervalOptions {
-	/** The requested interval period in seconds */
-	PERIOD,
-	/** The interval retention indicating if min/max/avg bases should be reatined across intervals, or reset */
-	RETENTION,  // sticky, interval reset
-	/** The subscription publication elligibility determination for the subscribed metrics */
-	DELIVERY;	// all intervals, on change, on data
-	
+public interface PickOne<T extends Enum<T>> {
+	/**
+	 * Returns the default enum member
+	 * @return the default enum member
+	 */
+	public T getDefault();
 	
 }

@@ -52,6 +52,27 @@ public interface BitMaskedEnum {
 	 * <p><code>org.helios.rindle.util.enums.BitMaskedEnum.Support</code></p>
 	 */
 	public static class Support {
+		
+		/**
+		 * Decodes the passed value to an enum
+		 * @param enumMap A map of enums keyed by the enum ordinals
+		 * @param obj The key to decode
+		 * @return The matched enum member or null if not matched
+		 */
+		public static <E extends Enum<E>> E decode(Map<Integer, E> enumMap, Object obj) {
+			if(obj==null || enumMap==null || enumMap.isEmpty()) return null;
+			String s = obj.toString().trim().toUpperCase();
+			E enumInstance = enumMap.values().iterator().next();
+			try {
+				return Enum.valueOf(enumInstance.getDeclaringClass(), s);
+			} catch (Exception x) {/* No Op */}
+			try {				
+				E instance = enumMap.get(new Double(s).intValue());
+				if(instance!=null) return instance;
+			} catch (Exception x) {/* No Op */}
+			return null;
+		}
+		
 		/**
 		 * Generates a long decode map for the passed enum type based on the ordinal
 		 * @param offset A constant value to add to each enums ordinals for situations 
@@ -186,6 +207,7 @@ public interface BitMaskedEnum {
 		public static <E extends Enum<E>> Map<Integer, E> generateIntMaskMap(E...enums) {
 			return generateIntMaskMap(0, enums);
 		}
+		
 		
 		
 		

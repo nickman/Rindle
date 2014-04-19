@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2014, Helios Development Group and individual contributors
+ * Copyright 2007, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,21 +22,17 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.rindle.subscriptions.criteria;
+package org.helios.rindle.subscription.criteria;
 
 /**
- * <p>Title: PickOne</p>
- * <p>Description: Defines an enum from which only one item is applicable at a time</p> 
+ * <p>Title: PickMask</p>
+ * <p>Description: Defines an option enum for which multiple members can be selected by mask</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.rindle.subscriptions.criteria.PickOne</code></p>
- * @param <T> The type of the enum represented
+ * <p><code>org.helios.rindle.subscription.criteria.PickMask</code></p>
+ * @param <T> The enum type
  */
 
-public interface PickOne<T extends Enum<T>> {
-	/**
-	 * Returns the default enum member
-	 * @return the default enum member
-	 */
-	public T getDefault();
+public interface PickMask<T extends Enum<T>> {
+
 }

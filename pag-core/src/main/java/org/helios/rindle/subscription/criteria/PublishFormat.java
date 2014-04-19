@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.rindle.subscriptions.criteria;
+package org.helios.rindle.subscription.criteria;
 
 import gnu.trove.map.hash.TByteObjectHashMap;
 
@@ -93,7 +93,7 @@ public enum PublishFormat implements PickOne<PublishFormat>{
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.subscriptions.criteria.PickOne#getDefault()
+	 * @see org.helios.rindle.subscription.criteria.PickOne#getDefault()
 	 */
 	@Override
 	public PublishFormat getDefault() {
