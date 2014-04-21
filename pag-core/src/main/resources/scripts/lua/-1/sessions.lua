@@ -20,17 +20,18 @@ session.sprefix = function(name)
 end
 
 
-session.session = function(Id)
-  if(Id == nil) then
+session.session = function()
+  if(ARGV[1] == nil) then
     return redis.error_reply('Session ID cannot be nil')
   end
+  local Id = ARGV[1] 
   local sessionId = session.sprefix(Id)
+  local specGids = session.SGIDFMT .. Id
+  local patGids = session.PGIDFMT .. Id
+  local patterns = session.PTFMT .. Id
+  local subs = session.SUBSFMT .. Id
    
   if(redis.call('EXISTS', sessionId)==0) then
-    local specGids = session.SGIDFMT .. Id
-    local patGids = session.PGIDFMT .. Id
-    local patterns = session.PTFMT .. Id
-    local subs = session.SUBSFMT .. Id
     redis.call('HMSET', sessionId,
       'sgids', specGids, 
       'pgids', patGids, 
@@ -44,6 +45,10 @@ session.session = function(Id)
     redis.call('SADD', session.STOREKEY, sessionId)    
   end
   redis.call('EXPIRE', sessionId, session.EXPIRATION)
+  redis.call('EXPIRE', specGids, session.EXPIRATION)
+  redis.call('EXPIRE', patGids, session.EXPIRATION)
+  redis.call('EXPIRE', patterns, session.EXPIRATION)
+  redis.call('EXPIRE', subs, session.EXPIRATION)
   return sessionId
 end
 
@@ -65,9 +70,12 @@ session.processGlobalId = function(Id, globalId, addOp, specified)
 end
 
 session.invoke = function() 
+  rlog.info("Invoking...")
   local functionName = table.remove(ARGV, 1)
   local paramOne = table.remove(ARGV, 1)
-  session[functionName](paramOne, ARGV)
+  local fx = session[functionName];
+  rlog.info("Calling [" .. tostring(fx) .. "]")
+  return session[functionName](paramOne, unpack(ARGV))
 end;
 
 session.addSpecifiedGlobalId = function(Id, ...)
@@ -75,6 +83,7 @@ session.addSpecifiedGlobalId = function(Id, ...)
     session.processGlobalId(Id, arg[i], true, true)
   end
 end
+
 
 session.removeSpecifiedGlobalId = function(Id, ...)
   for i=1, #arg do
@@ -105,6 +114,11 @@ session.addPattern = function(Id, ...)
 end
 
 session.removePattern = function(Id, ...)
+  if(Id==nil) then Id = ARGV[1] end
+  if(arg==nil) then 
+    table.remove(ARGV, 1)
+    arg = ARGV[1] 
+  end
   local sessionId = session.session(Id)
   local patKey = session.PTFMT .. Id
   local removed = 0
@@ -114,11 +128,50 @@ session.removePattern = function(Id, ...)
   return removed
 end
 
+session.getSessionData = function(key) 
+  if(key==nil) then key = ARGV[1] end
+  local ids = {}
+  if(redis.call('EXISTS', key)==1) then
+    for i,v in pairs(redis.call('SMEMBERS', key)) do
+      table.insert(ids, v)
+    end
+  end;
+  return ids;
+end
 
 
+session.getSpecifiedGlobalIds = function(Id)
+  if(Id==nil) then Id = ARGV[1] end
+  return session.getSessionData(session.SGIDFMT .. Id)
+end
+
+session.getPatternMatchGlobalIds = function(Id)
+  if(Id==nil) then Id = ARGV[1] end
+  return session.getSessionData(session.PGIDFMT .. Id)
+end
+
+session.getPatterns = function(Id)
+  if(Id==nil) then Id = ARGV[1] end
+  return session.getSessionData(session.PTFMT .. Id)
+end
 
 
+session.terminate = function(Id)
+  if(Id==nil) then Id = ARGV[1] end
+  redis.call('DEL', session.sprefix(Id))
+  redis.call('DEL', session.SGIDFMT .. Id)
+  redis.call('DEL', session.PGIDFMT .. Id)
+  redis.call('DEL', session.PTFMT .. Id)
+  redis.call('DEL', session.SUBSFMT .. Id)
+  redis.call('SREM', session.STOREKEY, session.sprefix(Id))
+end
 
+session.ttl = function(Id)
+  if(Id==nil) then Id = ARGV[1] end
+  local ttl = redis.call('TTL', session.sprefix(Id))
+  rlog.info("Session:[" .. session.sprefix(Id) .. "]:" .. ttl)
+  return tostring(ttl)
+end
 
 
 

@@ -27,6 +27,7 @@ package org.helios.rindle.store.redis;
 import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -139,8 +140,18 @@ public class ExtendedJedis extends BinaryJedis implements ClientInfoProvider {
 	 * @return the long as a byte array
 	 */
 	public byte[] longToBytes(long key) {
-		return longConverter.putLong(0, key).array();
+		return Long.toString(key).getBytes(Charset.defaultCharset());
 	}
+	
+	/**
+	 * Converts the passed long to a byte array
+	 * @param key The long to convert 
+	 * @return the long as a byte array
+	 */
+	public byte[] longToStrBytes(long key) {
+		return Long.toString(key).getBytes(Charset.defaultCharset());
+	}
+	
 
 	/**
 	 * Converts a byte array to a long

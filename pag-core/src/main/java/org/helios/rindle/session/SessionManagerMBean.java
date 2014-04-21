@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2007, Helios Development Group and individual contributors
+ * Copyright 2014, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,40 +22,33 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.rindle;
-
-import java.util.Collection;
-
-import org.helios.rindle.control.RindleMain;
-
-import com.google.common.util.concurrent.Service;
+package org.helios.rindle.session;
 
 /**
- * <p>Title: RindleService</p>
- * <p>Description: Defines a lifecycle and dependency model for rindle services</p> 
+ * <p>Title: SessionManagerMBean</p>
+ * <p>Description: MXBean interface for {@link SessionManager}</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.rindle.RindleService</code></p>
+ * <p><code>org.helios.rindle.session.SessionManagerMBean</code></p>
  */
 
-public interface RindleService extends Service {
+public interface SessionManagerMBean {
 	/**
-	 * Returns the dependent services of a RindleService
-	 * @return the dependent services of a RindleService
+	 * Initializes a new session
+	 * @return the id of the session
 	 */
-	public Collection<RindleService> getDependentServices();
-	
-	/**
-	 * Adds an array of dependent services
-	 * @param dependencies the services to add
-	 */
-	public void addDependentServices(RindleService...dependencies);
+	public long newSession();
 	
 	/**
-	 * Callback when all services are started
-	 * @param rindleMain The rindle main component
+	 * Terminates a session
+	 * @param id the id of the session to terminate
 	 */
-	public void onRindleStarted(RindleMain rindleMain);
+	public void terminateSession(long id);
 	
-	
+	/**
+	 * Returns the currently active sessions
+	 * @return an array of sessions
+	 */
+	public long[] getCurrentSessions();
+
 }

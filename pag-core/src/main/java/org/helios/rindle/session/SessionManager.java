@@ -24,10 +24,12 @@
  */
 package org.helios.rindle.session;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import java.util.concurrent.atomic.AtomicLong;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.helios.rindle.AbstractRindleService;
 import org.helios.rindle.store.IStore;
+import org.helios.rindle.util.JMXHelper;
 
 /**
  * <p>Title: SessionManager</p>
@@ -37,11 +39,12 @@ import org.helios.rindle.store.IStore;
  * <p><code>org.helios.rindle.session.SessionManager</code></p>
  */
 
-public class SessionManager {
-	/** Instance logger */
-	protected final Logger log = LogManager.getLogger(getClass());
+public class SessionManager extends AbstractRindleService implements SessionManagerMBean {
 	/** The rindle istore */
 	protected final IStore istore;
+	
+	/** The session id factory */
+	protected final AtomicLong sessionIdFactory = new AtomicLong();
 	
 	/** A map of sessions keyed by the session id */
 	protected final NonBlockingHashMapLong<ISession> sessions = new NonBlockingHashMapLong<ISession>(256, true);
@@ -52,6 +55,57 @@ public class SessionManager {
 	 */
 	public SessionManager(IStore istore) {
 		this.istore = istore;
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.AbstractRindleService#doStart()
+	 */
+	@Override
+	protected void doStart() {		
+		super.doStart();
+//		JMXHelper.registerMBean(this, JMXHelper.objectName(new StringBuilder(getClass().getPackage().getName()).append(":service=").append(getClass().getSimpleName())));
+		notifyStarted();
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.AbstractRindleService#doStop()
+	 */
+	@Override
+	protected void doStop() {	
+		super.doStop();
+		notifyStopped();
+	}
+	
+	/**
+	 * Initializes a new session
+	 * @return the id of the session
+	 */
+	@Override
+	public long newSession() {
+		final long id = sessionIdFactory.incrementAndGet();
+		ISession session = new SessionImpl(id, istore);
+		sessions.put(id, session);
+		session.initSession();
+		return id;
+	}
+	
+	/**
+	 * Terminates a session
+	 * @param id the id of the session to terminate
+	 */
+	public void terminateSession(long id) {
+		ISession session = sessions.get(id);
+		if(session!=null) session.terminateSession();
+	}
+	
+	/**
+	 * Returns the currently active sessions
+	 * @return an array of sessions
+	 */
+	public long[] getCurrentSessions() {
+		return istore.getCurrentSessions();
 	}
 
 }

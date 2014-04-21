@@ -24,24 +24,37 @@
  */
 package org.helios.rindle.session;
 
+import javax.management.ObjectName;
+
+import org.helios.rindle.store.IStore;
+import org.helios.rindle.util.JMXHelper;
+
 /**
  * <p>Title: SessionImpl</p>
- * <p>Description: </p> 
+ * <p>Description: The default session implementation</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.rindle.session.SessionImpl</code></p>
  */
 
-public class SessionImpl implements ISession {
+public class SessionImpl implements ISession, SessionMXBean {
 	/** The assigned session id */
 	protected final long sessionId;
+	/** The rindle istore */
+	protected final IStore istore;
+	/** This session's JMX ObjectName */
+	protected final ObjectName objectName;
 	
 	/**
 	 * Creates a new SessionImpl
 	 * @param sessionId The assigned session id
+	 * @param istore The rindle istore
 	 */
-	public SessionImpl(long sessionId) {
+	public SessionImpl(long sessionId, IStore istore) {
 		this.sessionId = sessionId;
+		this.istore = istore;
+		objectName = JMXHelper.objectName(new StringBuilder(getClass().getPackage().getName()).append(":type=").append(getClass().getSimpleName()).append(",id=").append(sessionId));
+		JMXHelper.registerMBean(this, objectName);
 	}
 
 	/**
@@ -50,7 +63,7 @@ public class SessionImpl implements ISession {
 	 */
 	@Override
 	public void initSession() {
-
+		istore.initSession(sessionId);
 	}
 
 	/**
@@ -59,8 +72,7 @@ public class SessionImpl implements ISession {
 	 */
 	@Override
 	public void addGlobalIds(long... globalIds) {
-		// TODO Auto-generated method stub
-
+		istore.addGlobalIds(sessionId, globalIds);
 	}
 
 	/**
@@ -69,8 +81,7 @@ public class SessionImpl implements ISession {
 	 */
 	@Override
 	public void removeGlobalIds(long... globalIds) {
-		// TODO Auto-generated method stub
-
+		istore.removeGlobalIds(sessionId, globalIds);
 	}
 
 	/**
@@ -79,8 +90,7 @@ public class SessionImpl implements ISession {
 	 */
 	@Override
 	public void addMatchedIds(long... globalIds) {
-		// TODO Auto-generated method stub
-
+		istore.addMatchedIds(sessionId, globalIds);
 	}
 
 	/**
@@ -89,8 +99,7 @@ public class SessionImpl implements ISession {
 	 */
 	@Override
 	public void removeMatchedIds(long... globalIds) {
-		// TODO Auto-generated method stub
-
+		istore.removeMatchedIds(sessionId, globalIds);
 	}
 
 	/**
@@ -99,8 +108,7 @@ public class SessionImpl implements ISession {
 	 */
 	@Override
 	public void addPatterns(String... patterns) {
-		// TODO Auto-generated method stub
-
+		istore.addPatterns(sessionId, patterns);
 	}
 
 	/**
@@ -109,8 +117,65 @@ public class SessionImpl implements ISession {
 	 */
 	@Override
 	public void removePatterns(String... patterns) {
-		// TODO Auto-generated method stub
-
+		istore.removePatterns(sessionId, patterns);
 	}
+	
+	/**
+	 * Returns an array of the session's subscribed global ids
+	 * @return an array of global ids
+	 */
+	public long[] getGlobalIds() {
+		return istore.getGlobalIds(sessionId);
+	}
+	
+	/**
+	 * Returns an array of the session's pattern matched subscribed global ids
+	 * @return an array of global ids
+	 */
+	public long[] getMatchedIds() {
+		return istore.getMatchedIds(sessionId);
+	}
+	
+	/**
+	 * Returns an array of the session's metric patterns
+	 * @return an array of metric patterns
+	 */
+	public String[] getPatterns() {
+		return istore.getPatterns(sessionId);
+	}
+	
+	/**
+	 * Terminates this session 
+	 */
+	public void terminateSession() {
+		istore.terminateSession(sessionId);
+		try { JMXHelper.unregisterMBean(objectName); } catch (Exception x) {/* No Op */}
+	}
+	
+	public long getTTL() {
+		return istore.ttl(sessionId);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.session.SessionMXBean#addGlobalId(long)
+	 */
+	@Override
+	public void addGlobalId(long globalId) {
+		addGlobalIds(globalId);
+		
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.session.SessionMXBean#addPattern(java.lang.String)
+	 */
+	@Override
+	public void addPattern(String pattern) {
+		addPatterns(pattern);
+		
+	}
+	
+
 
 }

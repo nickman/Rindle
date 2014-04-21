@@ -147,4 +147,47 @@ public interface IStore extends RindleService {
 	 */
 	public void removePatterns(long sessionId, String...patterns);
 	
+	/**
+	 * Retrieves the session's subscribed global Ids
+	 * @param sessionId the ID of the session
+	 * @return an array of subscribed global ids
+	 */
+	public long[] getGlobalIds(long sessionId);
+	/**
+	 * Retrieves the session's subscribed pattern matched global Ids
+	 * @param sessionId the ID of the session
+	 * @return an array of subscribed pattern matched global ids
+	 */
+	public long[] getMatchedIds(long sessionId);
+	/**
+	 * Retrieves the session's subscribed patterns 
+	 * @param sessionId the ID of the session
+	 * @return an array of subscribed patterns
+	 */
+	public String[] getPatterns(long sessionId);
+	
+	/**
+	 * Terminates the session
+	 * @param sessionId the ID of the session
+	 */
+	public void terminateSession(long sessionId);
+
+	/**
+	 * Returns the time-to-live in seconds for the passed session
+	 * @param sessionId the ID of the session
+	 * @return the time-to-live in seconds
+	 */
+	public long ttl(long sessionId);
+	
+	/**
+	 * Returns the ids of the currently active sessions
+	 * @return the ids of the currently active sessions
+	 */
+	public long[] getCurrentSessions();
+	
+	
+	
+	
+	
+	
 }

@@ -32,6 +32,7 @@ import java.util.Set;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Logger;
+import org.helios.rindle.control.RindleMain;
 import org.helios.rindle.util.JMXHelper;
 
 import com.google.common.util.concurrent.AbstractService;
@@ -44,7 +45,7 @@ import com.google.common.util.concurrent.AbstractService;
  * <p><code>org.helios.rindle.AbstractRindleService</code></p>
  */
 
-public class AbstractRindleService extends AbstractService implements RindleService, AbstractRindleServiceMXBean {
+public abstract class AbstractRindleService extends AbstractService implements RindleService, AbstractRindleServiceMXBean {
 	/** Instance logger */
 	protected final Logger log = (Logger) LogManager.getLogger(getClass());
 	/** Dependent Services */
@@ -58,6 +59,14 @@ public class AbstractRindleService extends AbstractService implements RindleServ
 				new StringBuilder(getClass().getPackage().getName())
 				.append(":service=").append(getClass().getSimpleName())
 		));
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.RindleService#onRindleStarted(org.helios.rindle.control.RindleMain)
+	 */
+	public void onRindleStarted(RindleMain rindleMain) {
+		/* No Op */
 	}
 
 	/**

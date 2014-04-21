@@ -1,5 +1,5 @@
 redis.call("SELECT", rindle.db)
-rlog.info("Calling getMetricDefs[", KEYS, "]")
+rlog.debug("Calling getMetricDefs[", KEYS, "]")
 local values = {}
 
 for i=1, #KEYS do

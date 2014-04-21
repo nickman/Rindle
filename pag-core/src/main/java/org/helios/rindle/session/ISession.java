@@ -24,6 +24,7 @@
  */
 package org.helios.rindle.session;
 
+
 /**
  * <p>Title: ISession</p>
  * <p>Description: Defines a stateful session representing a connected client</p> 
@@ -31,7 +32,6 @@ package org.helios.rindle.session;
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.rindle.session.ISession</code></p>
  */
-
 public interface ISession {
 	
 	
@@ -86,5 +86,33 @@ public interface ISession {
 	 */
 	public void removePatterns(String...patterns);
 	
+	/**
+	 * Returns an array of the session's subscribed global ids
+	 * @return an array of global ids
+	 */
+	public long[] getGlobalIds();
+	
+	/**
+	 * Returns an array of the session's pattern matched subscribed global ids
+	 * @return an array of global ids
+	 */
+	public long[] getMatchedIds();
+	
+	/**
+	 * Returns an array of the session's metric patterns
+	 * @return an array of metric patterns
+	 */
+	public String[] getPatterns();
+	
+	/**
+	 * Terminates this session 
+	 */
+	public void terminateSession();
+	
+	/**
+	 * Returns this session's time to live
+	 * @return this session's time to live in seconds
+	 */
+	public long getTTL();
 	
 }

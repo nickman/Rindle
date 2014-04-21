@@ -75,9 +75,11 @@ public class RedisStore extends AbstractRindleService implements IStore {
 	public static final byte[] EMPTY_BYTE_ARR = {};
 	/** An empty long array constant */
 	public static final long[] EMPTY_LONG_ARR = {};
+	/** An empty string array constant */
+	public static final String[] EMPTY_STRING_ARR = {};
 	
 	/** The redis script to initialize or touch session global ids */
-	private static final byte[] SESSION_INIT = "session.session".getBytes(CHARSET);
+	private static final byte[] SESSION_INIT = "session.session()".getBytes(CHARSET);
 	/** The redis script to add session global ids */
 	private static final byte[] ADD_GID = "addSpecifiedGlobalId".getBytes(CHARSET);
 	/** The redis script to remove session global ids */
@@ -90,9 +92,23 @@ public class RedisStore extends AbstractRindleService implements IStore {
 	private static final byte[] ADD_PATTERN = "addPattern".getBytes(CHARSET);
 	/** The redis script to add a name pattern */
 	private static final byte[] REM_PATTERN = "removePattern".getBytes(CHARSET);
+	/** The redis script to get subscribed global ids for a session */
+	private static final byte[] GET_GIDS = "getSpecifiedGlobalIds".getBytes(CHARSET);
+	/** The redis script to get subscribed pattern matched global ids for a session */
+	private static final byte[] GET_PGIDS = "getPatternMatchGlobalIds".getBytes(CHARSET);
+	/** The redis script to get subscribed patterns for a session */
+	private static final byte[] GET_PATTERNS = "getPatterns".getBytes(CHARSET);
+	/** The redis script to get terminate a session */
+	private static final byte[] TERM = "terminateSession".getBytes(CHARSET);
+	/** The redis script to get a session's time-to-live */
+	private static final byte[] TTL = "ttl".getBytes(CHARSET);
+	
+
+	
+	
 	
 	/** The redis session script invoker */
-	private static final byte[] SESSION_INVOKER = "session.invoke".getBytes(CHARSET);
+	private static final byte[] SESSION_INVOKER = "return session.invoke()".getBytes(CHARSET);
 	 
 	
 	/** A constant for a Null string as bytes */
@@ -533,7 +549,6 @@ public class RedisStore extends AbstractRindleService implements IStore {
 		connectionPool.redisTask(new RedisTask<Void>() {
 			@Override
 			public Void redisTask(ExtendedJedis jedis) throws Exception {
-				@SuppressWarnings("unchecked")
 				ArrayList<byte[]> results = (ArrayList<byte[]>)jedis.eval("return rindle.invokeIdsForPattern()".getBytes(CHARSET), 0, metricNamePattern.getBytes(CHARSET));
 				for(byte[] result: results) {
 					globalIds.add(jedis.bytesToLong(result));
@@ -561,6 +576,122 @@ public class RedisStore extends AbstractRindleService implements IStore {
 		} finally {
 			UnsafeAdapter.freeMemory(address);
 		}
+	}
+
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getGlobalIds(long)
+	 */
+	@Override
+	public long[] getGlobalIds(final long sessionId) {
+		return connectionPool.redisTask(new RedisTask<long[]>() {
+			@Override
+			public long[] redisTask(ExtendedJedis jedis) throws Exception {
+				ArrayList<byte[]> results = (ArrayList<byte[]>)jedis.eval(SESSION_INVOKER, 0, GET_GIDS, jedis.longToBytes(sessionId));
+				if(results.isEmpty()) return EMPTY_LONG_ARR;
+				long[] gids = new long[results.size()];
+				for(int i = 0; i < gids.length; i++) {
+					gids[i] = jedis.bytesToLong(results.get(i));
+				}
+				return gids;
+			}
+		});		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#ttl(long)
+	 */
+	@Override
+	public long ttl(final long sessionId) {
+		return connectionPool.redisTask(new RedisTask<Long>() {
+			@Override
+			public Long redisTask(ExtendedJedis jedis) throws Exception {
+				Object obj = jedis.eval(SESSION_INVOKER, 0, TTL, jedis.longToBytes(sessionId));
+				log.info("---->TTL: [{}]", obj);
+				byte[] bytes = (byte[])obj;
+				return jedis.bytesToLong(bytes);
+			}
+		});		
+
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getMatchedIds(long)
+	 */
+	@Override
+	public long[] getMatchedIds(final long sessionId) {
+		return connectionPool.redisTask(new RedisTask<long[]>() {
+			@Override
+			public long[] redisTask(ExtendedJedis jedis) throws Exception {
+				ArrayList<byte[]> results = (ArrayList<byte[]>)jedis.eval(SESSION_INVOKER, 0, GET_PGIDS, jedis.longToBytes(sessionId));
+				if(results.isEmpty()) return EMPTY_LONG_ARR;
+				long[] gids = new long[results.size()];
+				for(int i = 0; i < gids.length; i++) {
+					gids[i] = jedis.bytesToLong(results.get(i));
+				}
+				return gids;
+			}
+		});		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getCurrentSessions()
+	 */
+	@Override
+	public long[] getCurrentSessions() {
+		return connectionPool.redisTask(new RedisTask<long[]>() {
+			@Override
+			public long[] redisTask(ExtendedJedis jedis) throws Exception {
+				Set<byte[]> sessionBytes = jedis.sinter("rindlesessionstore".getBytes(CHARSET));
+				if(sessionBytes.isEmpty()) return EMPTY_LONG_ARR;
+				long[] sessions = new long[sessionBytes.size()];
+				int cnt = 0;
+				for(byte[] b: sessionBytes) {
+					log.info("Current Session: {}", new String(b, CHARSET));
+					sessions[cnt] = Long.parseLong(new String(b, CHARSET).split(":")[1]);
+				}
+				return sessions;
+			}
+		});
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getPatterns(long)
+	 */
+	@Override
+	public String[] getPatterns(final long sessionId) {
+		return connectionPool.redisTask(new RedisTask<String[]>() {
+			@Override
+			public String[] redisTask(ExtendedJedis jedis) throws Exception {
+				ArrayList<byte[]> results = (ArrayList<byte[]>)jedis.eval(SESSION_INVOKER, 0, GET_PATTERNS, jedis.longToBytes(sessionId));
+				if(results.isEmpty()) return EMPTY_STRING_ARR;
+				String[] pats = new String[results.size()];
+				for(int i = 0; i < pats.length; i++) {
+					pats[i] = new String(results.get(i), CHARSET);
+				}
+				return pats;
+			}
+		});		
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#terminateSession(long)
+	 */
+	@Override
+	public void terminateSession(final long sessionId) {
+		connectionPool.redisTask(new RedisTask<Void>() {
+			public Void redisTask(ExtendedJedis jedis) throws Exception {
+				jedis.eval(SESSION_INVOKER, 0, TERM);
+				return null;
+			}
+		});
+		
 	}
 
 }

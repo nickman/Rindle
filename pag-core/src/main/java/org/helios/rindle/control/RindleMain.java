@@ -35,11 +35,13 @@ import org.apache.logging.log4j.Logger;
 import org.helios.rindle.AbstractRindleService;
 import org.helios.rindle.Constants;
 import org.helios.rindle.RindleService;
+import org.helios.rindle.session.SessionManager;
 import org.helios.rindle.store.IStore;
 import org.helios.rindle.submit.ISubmit;
 import org.helios.rindle.submit.SubmitImpl;
 import org.helios.rindle.util.ConfigurationHelper;
 import org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPool;
+import org.helios.rindle.util.jmx.jmxmp.JMXMPConnectionServer;
 
 import com.google.common.util.concurrent.ServiceManager;
 
@@ -64,6 +66,10 @@ public class RindleMain extends AbstractRindleService {
 	protected Registry registry = Registry.getInstance();
 	/** The rindle istore */
 	protected IStore istore = createIStore();
+	/** The rindle session manager */
+	protected SessionManager sessionManager = new SessionManager(istore);
+	/** The rindle JMX connector server */
+	protected final JMXMPConnectionServer jmxmpServer = new JMXMPConnectionServer(null);
 	/** The core submitter */
 	protected ISubmit submitter = null;
 	/**
@@ -93,6 +99,9 @@ public class RindleMain extends AbstractRindleService {
 					LOG.info("Rindle Services Starting......");
 					instance.serviceManager.startAsync();
 					instance.serviceManager.awaitHealthy();
+					for(RindleService svc: instance.rindleServices) {
+						svc.onRindleStarted(instance);
+					}
 					instance.submitter = new SubmitImpl(instance.registry, instance.istore);
 					LOG.info("********************************");
 				}
@@ -111,6 +120,8 @@ public class RindleMain extends AbstractRindleService {
 		LOG.info("Rindle Core Started.");
 		addRindleService(this);
 		addRindleService(istore);
+		addRindleService(jmxmpServer);
+		addRindleService(sessionManager);
 		LOG.info("Rindle Services to Start: {}", rindleServices.size());
 		serviceManager = new ServiceManager(rindleServices);
 	}

@@ -37,12 +37,12 @@ rindle.metricExists = function(globalId)
   return redis.call('EXISTS', rindle.gprefix(globalId))
 end
 
-rindle.getMetrics = function(...) 
+rindle.getMetrics = function(...)
+  
 	local values = {}
 	for i=1, #arg do
 	    local id = tostring(arg[i]);
-	    local val = redis.call('HGETALL', id)
-      rlog.debug("Fetching metric:" .. id)
+	    local val = redis.call('HGETALL', 'G:' .. id)
 	    local entry = {};
 	    entry['id'] = id;
       local k = nil;
@@ -60,18 +60,18 @@ rindle.getMetrics = function(...)
 	return values
 end
 
-rindle.getMetricsJson = function(...) 
-  return cjson.encode(rindle.getMetrics(arg))
+rindle.getMetricsJson = function(...)
+  return cjson.encode(rindle.getMetrics(unpack(arg)))
 end
 
 
 
 rindle.fireNewMetric = function(gid)
-	redis.call('PUBLISH', 'RINDLE.EVENT.METRIC.NEW', rindle.getMetricsJson(gid))
+	redis.call('PUBLISH', 'RINDLE.EVENT.METRIC.NEW', rindle.getMetricsJson(rindle.gunfix(gid)))
 end
 
 rindle.fireUpdatedMetric = function(gid)
-	redis.call('PUBLISH', 'RINDLE.EVENT.METRIC.UPDATE', rindle.getMetricsJson(gid))
+	redis.call('PUBLISH', 'RINDLE.EVENT.METRIC.UPDATE', rindle.getMetricsJson(rindle.gunfix(gid)))
 end
 
 

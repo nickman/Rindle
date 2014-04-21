@@ -33,13 +33,12 @@ import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXConnectorServerFactory;
 import javax.management.remote.JMXServiceURL;
 
+import org.helios.rindle.AbstractRindleService;
 import org.helios.rindle.Constants;
 import org.helios.rindle.util.ConfigurationHelper;
 import org.helios.rindle.util.JMXHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.util.concurrent.AbstractService;
 
 /**
  * <p>Title: JMXMPConnectionServer</p>
@@ -49,7 +48,7 @@ import com.google.common.util.concurrent.AbstractService;
  * <p><code>org.helios.rindle.util.jmx.jmxmp.JMXMPConnectionServer</code></p>
  */
 
-public class JMXMPConnectionServer extends AbstractService {
+public class JMXMPConnectionServer extends AbstractRindleService  {
 	/** Instance logger */
 	protected final Logger log = LoggerFactory.getLogger(getClass());
 	
@@ -70,6 +69,7 @@ public class JMXMPConnectionServer extends AbstractService {
 	 * @param config The TSDB provided configuration properties
 	 */
 	public JMXMPConnectionServer(Properties config) {
+		if(config==null) config = new Properties();
 		port = ConfigurationHelper.getIntSystemThenEnvProperty(Constants.JMXMP_PORT, Constants.DEFAULT_JMXMP_PORT, config);
 		iface = ConfigurationHelper.getSystemThenEnvProperty(Constants.JMXMP_INTERFACE, Constants.DEFAULT_JMXMP_INTERFACE, config);
 		log.info("JMXMP Listener Endpoint: [{}:{}]", iface, port);
@@ -96,12 +96,13 @@ public class JMXMPConnectionServer extends AbstractService {
 			final JMXMPConnectionServer _this = this;
 			Thread shutdown = new Thread("JMXServerShutdownHook") {
 				public void run() {
-					_this.stop();
+					_this.doStop();
 				}
 			};
 			shutdown.setDaemon(true);
 			Runtime.getRuntime().addShutdownHook(shutdown);
 			server.start();
+			this.notifyStarted();
 		} catch (Exception ex) {
 			log.error("Failed to start JMXMP Connector Server", ex);
 		}
