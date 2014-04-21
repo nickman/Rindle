@@ -75,6 +75,24 @@ public class RedisStore extends AbstractRindleService implements IStore {
 	public static final byte[] EMPTY_BYTE_ARR = {};
 	/** An empty long array constant */
 	public static final long[] EMPTY_LONG_ARR = {};
+	
+	/** The redis script to initialize or touch session global ids */
+	private static final byte[] SESSION_INIT = "session.session".getBytes(CHARSET);
+	/** The redis script to add session global ids */
+	private static final byte[] ADD_GID = "addSpecifiedGlobalId".getBytes(CHARSET);
+	/** The redis script to remove session global ids */
+	private static final byte[] REM_GID = "removeSpecifiedGlobalId".getBytes(CHARSET);
+	/** The redis script to add pattern matched session global ids */
+	private static final byte[] ADD_PGID = "addPatternedGlobalId".getBytes(CHARSET);
+	/** The redis script to remove pattern matched session global ids */
+	private static final byte[] REM_PGID = "removePatternedGlobalId".getBytes(CHARSET);
+	/** The redis script to add a name pattern */
+	private static final byte[] ADD_PATTERN = "addPattern".getBytes(CHARSET);
+	/** The redis script to add a name pattern */
+	private static final byte[] REM_PATTERN = "removePattern".getBytes(CHARSET);
+	
+	/** The redis session script invoker */
+	private static final byte[] SESSION_INVOKER = "session.invoke".getBytes(CHARSET);
 	 
 	
 	/** A constant for a Null string as bytes */
@@ -319,6 +337,8 @@ public class RedisStore extends AbstractRindleService implements IStore {
 			}
 		});		
 	}
+	
+
 
 	/**
 	 * {@inheritDoc}
@@ -341,6 +361,166 @@ public class RedisStore extends AbstractRindleService implements IStore {
 			throw new RuntimeException("Failed to get metric definitions", ex);
 		}
 	}
+	
+	/**
+	 * Initializes or touches a session with the passed session ID
+	 * @param sessionId The session ID to initialize or touch
+	 */
+	public void initSession(final long sessionId) {
+		connectionPool.redisTask(new RedisTask<Void>() {
+			@Override
+			public Void redisTask(ExtendedJedis jedis) throws Exception {
+				jedis.eval(SESSION_INIT, 0, jedis.longToBytes(sessionId));
+				return null;
+			}
+		});
+	}
+	
+	/**
+	 * Adds the passed global IDs to the identified session's subscribed metrics
+	 * @param sessionId The ID of the session to operate against
+	 * @param globalIds the specified global IDs to add
+	 */
+	public void addGlobalIds(final long sessionId, final long...globalIds) {
+		if(globalIds==null || globalIds.length==0) return;
+		connectionPool.redisTask(new RedisTask<Void>() {
+			@Override
+			public Void redisTask(ExtendedJedis jedis) throws Exception {
+				byte[][] gids = new byte[globalIds.length +2][];
+				gids[0] = ADD_GID;
+				gids[1] = jedis.longToBytes(sessionId);
+				for(int i = 0; i < globalIds.length; i++) {
+					gids[i+2] = jedis.longToBytes(globalIds[i]);
+				}
+				jedis.eval(SESSION_INVOKER, 0, gids);
+				return null;
+			}
+		});		
+	}
+	
+	/**
+	 * Removes the passed global IDs from the identified session's subscribed metrics
+	 * @param sessionId The ID of the session to operate against
+	 * @param globalIds the specified global IDs to remove
+	 */
+	public void removeGlobalIds(final long sessionId, final long...globalIds) {
+		if(globalIds==null || globalIds.length==0) return;
+		connectionPool.redisTask(new RedisTask<Void>() {
+			@Override
+			public Void redisTask(ExtendedJedis jedis) throws Exception {
+				byte[][] gids = new byte[globalIds.length +2][];
+				gids[0] = REM_GID;
+				gids[1] = jedis.longToBytes(sessionId);
+				for(int i = 0; i < globalIds.length; i++) {
+					gids[i+2] = jedis.longToBytes(globalIds[i]);
+				}
+				jedis.eval(SESSION_INVOKER, 0, gids);
+				return null;
+			}
+		});				
+	}
+	
+	/**
+	 * Adds the passed global IDs to the identified session's pattern matched subscribed metrics
+	 * @param sessionId The ID of the session to operate against
+	 * @param globalIds the pattern matched global IDs to add
+	 */
+	public void addMatchedIds(final long sessionId, final long...globalIds) {
+		if(globalIds==null || globalIds.length==0) return;
+		connectionPool.redisTask(new RedisTask<Void>() {
+			@Override
+			public Void redisTask(ExtendedJedis jedis) throws Exception {
+				byte[][] gids = new byte[globalIds.length +2][];
+				gids[0] = ADD_PGID;
+				gids[1] = jedis.longToBytes(sessionId);
+				for(int i = 0; i < globalIds.length; i++) {
+					gids[i+2] = jedis.longToBytes(globalIds[i]);
+				}
+				jedis.eval(SESSION_INVOKER, 0, gids);
+				return null;
+			}
+		});				
+	}
+	
+	/**
+	 * Removes the passed global IDs from the identified session's pattern matched subscribed metrics
+	 * @param sessionId The ID of the session to operate against
+	 * @param globalIds the pattern matched global IDs to remove
+	 */
+	public void removeMatchedIds(final long sessionId, final long...globalIds) {
+		if(globalIds==null || globalIds.length==0) return;
+		connectionPool.redisTask(new RedisTask<Void>() {
+			@Override
+			public Void redisTask(ExtendedJedis jedis) throws Exception {
+				byte[][] gids = new byte[globalIds.length +2][];
+				gids[0] = REM_PGID;
+				gids[1] = jedis.longToBytes(sessionId);
+				for(int i = 0; i < globalIds.length; i++) {
+					gids[i+2] = jedis.longToBytes(globalIds[i]);
+				}
+				jedis.eval(SESSION_INVOKER, 0, gids);
+				return null;
+			}
+		});				
+	}
+	
+	/**
+	 * Adds metric name matching patterns to the identified session's subscribed patterns
+	 * @param sessionId The ID of the session to operate against
+	 * @param patterns the metric name matching patterns to add
+	 */
+	public void addPatterns(final long sessionId, final String...patterns) {
+		if(patterns==null || patterns.length==0) return;
+		connectionPool.redisTask(new RedisTask<Void>() {
+			@Override
+			public Void redisTask(ExtendedJedis jedis) throws Exception {
+				byte[][] gids = new byte[patterns.length +2][];
+				gids[0] = ADD_PATTERN;
+				gids[1] = jedis.longToBytes(sessionId);
+				for(int i = 0; i < patterns.length; i++) {
+					gids[i+2] = patterns[i].getBytes(CHARSET);
+				}
+				jedis.eval(SESSION_INVOKER, 0, gids);
+				return null;
+			}
+		});		
+	}
+	
+	/**
+	 * Removes metric name matching patterns from the identified session's subscribed patterns
+	 * @param sessionId The ID of the session to operate against
+	 * @param patterns the metric name matching patterns to remove
+	 */
+	public void removePatterns(final long sessionId, final String...patterns) {
+		if(patterns==null || patterns.length==0) return;
+		connectionPool.redisTask(new RedisTask<Void>() {
+			@Override
+			public Void redisTask(ExtendedJedis jedis) throws Exception {
+				byte[][] gids = new byte[patterns.length +2][];
+				gids[0] = REM_PATTERN;
+				gids[1] = jedis.longToBytes(sessionId);
+				for(int i = 0; i < patterns.length; i++) {
+					gids[i+2] = patterns[i].getBytes(CHARSET);
+				}
+				jedis.eval(SESSION_INVOKER, 0, gids);
+				return null;
+			}
+		});				
+	}
+	
+
+	
+	//	public void addRequestedGlobalId()
+	
+//	session.addSpecifiedGlobalId = function(globalId, Id)
+//	session.removeSpecifiedGlobalId = function(globalId, Id)
+//
+//	session.addPatternedGlobalId = function(globalId, ...)
+//	session.removePatternedGlobalId = function(globalId, ...)
+//
+//	session.addPattern = function(Id, ...)
+//	session.removePattern = function(Id, ...)
+	
 
 	/**
 	 * {@inheritDoc}

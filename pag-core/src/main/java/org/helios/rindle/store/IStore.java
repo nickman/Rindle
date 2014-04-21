@@ -98,4 +98,53 @@ public interface IStore extends RindleService {
 	 * @return an array of global ids
 	 */
 	public long[] getGlobalIds(String metricNamePattern);
+	
+	/**
+	 * Initializes or touches a session with the passed session ID
+	 * @param sessionId The session ID to initialize or touch
+	 */
+	public void initSession(long sessionId);
+	
+	/**
+	 * Adds the passed global IDs to the identified session's subscribed metrics
+	 * @param sessionId The ID of the session to operate against
+	 * @param globalIds the specified global IDs to add
+	 */
+	public void addGlobalIds(long sessionId, long...globalIds);
+	
+	/**
+	 * Removes the passed global IDs from the identified session's subscribed metrics
+	 * @param sessionId The ID of the session to operate against
+	 * @param globalIds the specified global IDs to remove
+	 */
+	public void removeGlobalIds(long sessionId, long...globalIds);
+	
+	/**
+	 * Adds the passed global IDs to the identified session's pattern matched subscribed metrics
+	 * @param sessionId The ID of the session to operate against
+	 * @param globalIds the pattern matched global IDs to add
+	 */
+	public void addMatchedIds(long sessionId, long...globalIds);
+	
+	/**
+	 * Removes the passed global IDs from the identified session's pattern matched subscribed metrics
+	 * @param sessionId The ID of the session to operate against
+	 * @param globalIds the pattern matched global IDs to remove
+	 */
+	public void removeMatchedIds(long sessionId, long...globalIds);
+	
+	/**
+	 * Adds metric name matching patterns to the identified session's subscribed patterns
+	 * @param sessionId The ID of the session to operate against
+	 * @param patterns the metric name matching patterns to add
+	 */
+	public void addPatterns(long sessionId, String...patterns);
+	
+	/**
+	 * Removes metric name matching patterns from the identified session's subscribed patterns
+	 * @param sessionId The ID of the session to operate against
+	 * @param patterns the metric name matching patterns to remove
+	 */
+	public void removePatterns(long sessionId, String...patterns);
+	
 }

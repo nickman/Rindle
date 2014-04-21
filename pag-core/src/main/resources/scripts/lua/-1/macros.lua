@@ -5,6 +5,7 @@ rindle.GPREFIX = 'G:'
 rindle.NPREFIX = 'N:'
 rindle.OPREFIX = 'O:'
 
+
 rindle.nprefix = function(name) 
   if(name==nil or name=='NULL') then return nil end
   if(string.find(name, rindle.NPREFIX)==1) then return name end
@@ -31,7 +32,10 @@ rindle.gunfix = function(gid)
   return string.sub(gid, 3)
 end
 
-
+rindle.metricExists = function(globalId) 
+  if(globalId == nil) then return false end
+  return redis.call('EXISTS', rindle.gprefix(globalId))
+end
 
 rindle.getMetrics = function(...) 
 	local values = {}

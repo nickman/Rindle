@@ -33,5 +33,58 @@ package org.helios.rindle.session;
  */
 
 public interface ISession {
-
+	
+	
+//			session.session = function(Id)
+//			session.addSpecifiedGlobalId = function(globalId, Id)
+//			session.removeSpecifiedGlobalId = function(globalId, Id)
+//
+//			session.addPatternedGlobalId = function(globalId, ...)
+//			session.removePatternedGlobalId = function(globalId, ...)
+//
+//			session.addPattern = function(Id, ...)
+//			session.removePattern = function(Id, ...)
+	
+	/**
+	 * Initializes this session
+	 */
+	public void initSession();
+	
+	/**
+	 * Adds the passed global IDs to this session's subscribed metrics
+	 * @param globalIds the specified global IDs to add
+	 */
+	public void addGlobalIds(long...globalIds);
+	
+	/**
+	 * Removes the passed global IDs from this session's subscribed metrics
+	 * @param globalIds the specified global IDs to remove
+	 */
+	public void removeGlobalIds(long...globalIds);
+	
+	/**
+	 * Adds the passed global IDs to this session's pattern matched subscribed metrics
+	 * @param globalIds the pattern matched global IDs to add
+	 */
+	public void addMatchedIds(long...globalIds);
+	
+	/**
+	 * Removes the passed global IDs from this session's pattern matched subscribed metrics
+	 * @param globalIds the pattern matched global IDs to remove
+	 */
+	public void removeMatchedIds(long...globalIds);
+	
+	/**
+	 * Adds metric name matching patterns to this session's subscribed patterns
+	 * @param patterns the metric name matching patterns to add
+	 */
+	public void addPatterns(String...patterns);
+	
+	/**
+	 * Removes metric name matching patterns from this session's subscribed patterns
+	 * @param patterns the metric name matching patterns to remove
+	 */
+	public void removePatterns(String...patterns);
+	
+	
 }
