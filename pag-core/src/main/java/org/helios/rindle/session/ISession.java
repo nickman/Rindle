@@ -24,6 +24,8 @@
  */
 package org.helios.rindle.session;
 
+import java.util.Map;
+
 
 /**
  * <p>Title: ISession</p>
@@ -114,5 +116,17 @@ public interface ISession {
 	 * @return this session's time to live in seconds
 	 */
 	public long getTTL();
+	
+	/**
+	 * Returns the session sub-keys
+	 * @return the session sub-keys
+	 */
+	public Map<String, String> getSessionKeys();
+	
+	/**
+	 * Touches the session, keeping it alive for a new expiration period
+	 */
+	public void touchSession();
+
 	
 }

@@ -35,6 +35,7 @@ import org.apache.logging.log4j.Logger;
 import org.helios.rindle.AbstractRindleService;
 import org.helios.rindle.Constants;
 import org.helios.rindle.RindleService;
+import org.helios.rindle.session.ISession;
 import org.helios.rindle.session.SessionManager;
 import org.helios.rindle.store.IStore;
 import org.helios.rindle.submit.ISubmit;
@@ -131,6 +132,14 @@ public class RindleMain extends AbstractRindleService {
 		try {
 			RindleMain rm = getInstance();
 			rm.getIstore().purge();
+			
+			SessionManager sm = rm.getSessionManager();
+			long id = sm.newSession();
+			ISession session = sm.getSession(id);
+			
+			session.addPatterns("*");
+			
+			
 			//long result = rm.getIstore().getGlobalId("AAA", "BBB".getBytes());
 			long result = rm.getIstore().getGlobalId("FOO", "BAR".getBytes());
 			LOG.info("Foo Result: {}", result);
@@ -152,6 +161,10 @@ public class RindleMain extends AbstractRindleService {
 			
 			long[] arr = rm.getIstore().getGlobalIds("*");
 			LOG.info("IDs: {}", Arrays.toString(arr));
+			
+			
+			
+			
 			Thread.sleep(300000000);
 			System.exit(0);
 		} catch (Exception x) {
@@ -259,5 +272,13 @@ public class RindleMain extends AbstractRindleService {
 	@Override
 	public Collection<RindleService> getDependentServices() {
 		return rindleServices;
+	}
+
+	/**
+	 * Returns the session manager
+	 * @return the session manager
+	 */
+	public SessionManager getSessionManager() {
+		return sessionManager;
 	}
 }

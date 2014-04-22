@@ -24,6 +24,8 @@
  */
 package org.helios.rindle.session;
 
+import java.util.Map;
+
 import javax.management.ObjectName;
 
 import org.helios.rindle.store.IStore;
@@ -172,10 +174,42 @@ public class SessionImpl implements ISession, SessionMXBean {
 	 */
 	@Override
 	public void addPattern(String pattern) {
-		addPatterns(pattern);
-		
+		addPatterns(pattern);		
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.session.ISession#getSessionKeys()
+	 */
+	@Override
+	public Map<String, String> getSessionKeys() {
+		return istore.getSessionKeys(sessionId);
+	}
+	
+	/**
+	 * Touches the session, keeping it alive for a new expiration period
+	 */
+	public void touchSession() {
+		initSession();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.session.SessionMXBean#removeGlobalId(long)
+	 */
+	@Override
+	public void removeGlobalId(long globalId) {
+		removeGlobalIds(globalId);		
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.session.SessionMXBean#removePattern(java.lang.String)
+	 */
+	@Override
+	public void removePattern(String pattern) {
+		removePatterns(pattern);		
+	}
 
 
 }

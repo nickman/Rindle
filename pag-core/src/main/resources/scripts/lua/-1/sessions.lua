@@ -12,6 +12,7 @@ session.SUBSFMT = 'SUB:'
 session.EXPIRATION = 300 
 session.STOREKEY = 'rindlesessionstore'
 session.GIDSUBTRACKER = 'rindlegidsubtracker'
+session.PATSUBTRACKER = 'rindlepatternsubtracker'
 
 session.sprefix = function(name) 
   if(name==nil or name=='NULL') then return nil end
@@ -65,16 +66,14 @@ session.processGlobalId = function(Id, globalId, addOp, specified)
       redis.call('PUBLISH', 'RINDLE.SUBSCRIPTION.STARTED', rindle.getMetricsJson(globalId))  
     elseif(zresult==-1) then
       redis.call('PUBLISH', 'RINDLE.SUBSCRIPTION.ENDED', rindle.getMetricsJson(globalId))
-    end        
+    end     
   end
 end
 
 session.invoke = function() 
-  rlog.info("Invoking...")
   local functionName = table.remove(ARGV, 1)
   local paramOne = table.remove(ARGV, 1)
   local fx = session[functionName];
-  rlog.info("Calling [" .. tostring(fx) .. "]")
   return session[functionName](paramOne, unpack(ARGV))
 end;
 
@@ -108,7 +107,13 @@ session.addPattern = function(Id, ...)
   local patKey = session.PTFMT .. Id
   local added = 0
   for i=1, #arg do
-    added = added + redis.call('SADD', patKey, arg[i])
+    local pattern = arg[1]
+    added = added + redis.call('SADD', patKey, pattern)  
+    local zresult = redis.call('ZINCRBY', session.PATSUBTRACKER, 1, pattern)
+    if(zresult==1) then
+      rlog.info('Pattern Started: [' .. pattern .. ']')
+      redis.call('PUBLISH', 'RINDLE.PATTERN.STARTED', pattern)  
+    end         
   end
   return added
 end
@@ -123,7 +128,14 @@ session.removePattern = function(Id, ...)
   local patKey = session.PTFMT .. Id
   local removed = 0
   for i=1, #arg do
-    removed = removed + redis.call('SREM', patKey, arg[i])
+    local pattern = arg[1]
+    removed = removed + redis.call('SREM', patKey, pattern)
+    local zresult = redis.call('ZINCRBY', session.PATSUBTRACKER, -1, pattern)
+    if(zresult==0) then
+      rlog.info('Pattern Started: [' .. pattern .. ']')
+      redis.call('PUBLISH', 'RINDLE.PATTERN.ENDED', pattern)  
+    end         
+    
   end
   return removed
 end

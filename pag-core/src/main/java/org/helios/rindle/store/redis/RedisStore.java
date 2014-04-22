@@ -29,8 +29,10 @@ import gnu.trove.set.hash.TLongHashSet;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import javax.management.MXBean;
 
@@ -243,6 +245,15 @@ public class RedisStore extends AbstractRindleService implements IStore {
 				connectionPool.pubSub.subscribe("RINDLE.LOGGING.EVENT.LOG");
 				connectionPool.pubSub.subscribe("RINDLE.EVENT.METRIC.NEW");
 				connectionPool.pubSub.subscribe("RINDLE.EVENT.METRIC.UPDATE");
+				connectionPool.pubSub.subscribe("RINDLE.EVENT.METRIC.NEW");
+				connectionPool.pubSub.subscribe("RINDLE.PATTERN.*");
+				connectionPool.pubSub.subscribe("RINDLE.PATTERN.*");
+				
+//				connectionPool.pubSub.psubscribe("__keyevent__@?__*");
+//				connectionPool.pubSub.psubscribe("__keyspace__@?__*");
+//				connectionPool.pubSub.psubscribe("__*");
+				
+
 				connectionPool.pubSub.registerListener(new EmptySubListener() {
 					@Override
 					public void onChannelMessage(String channel, String message) {
@@ -522,6 +533,33 @@ public class RedisStore extends AbstractRindleService implements IStore {
 				return null;
 			}
 		});				
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.rindle.store.IStore#getSessionKeys(long)
+	 */
+	@Override
+	public Map<String, String> getSessionKeys(final long sessionId) {
+		return connectionPool.redisTask(new RedisTask<Map<String, String>>() {
+			@Override
+			public Map<String, String> redisTask(ExtendedJedis jedis) throws Exception {				
+				Map<byte[], byte[]> bytes = jedis.hgetAll(("S:" + sessionId).getBytes(CHARSET));
+				Map<String, String> keys = new TreeMap<String, String>();
+
+				for(Map.Entry<byte[], byte[]> entry : bytes.entrySet()) {
+					keys.put(new String(entry.getKey(), CHARSET),  new String(entry.getValue(), CHARSET));
+				}
+				return keys;
+			}
+		});						
+	}
+	
+	public static enum SessionSubKey {
+		patterns,
+		pgids,
+		sgids,
+		subs;
 	}
 	
 

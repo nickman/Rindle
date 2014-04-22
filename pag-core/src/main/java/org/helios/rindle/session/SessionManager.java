@@ -107,5 +107,14 @@ public class SessionManager extends AbstractRindleService implements SessionMana
 	public long[] getCurrentSessions() {
 		return istore.getCurrentSessions();
 	}
+	
+	/**
+	 * Returns the session for the passed session Id
+	 * @param sessionId the id of the session to return
+	 * @return the session or null if one was not found
+	 */
+	public ISession getSession(long sessionId) {
+		return sessions.get(sessionId);
+	}
 
 }

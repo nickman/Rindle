@@ -24,6 +24,8 @@
  */
 package org.helios.rindle.session;
 
+import java.util.Map;
+
 import javax.management.MXBean;
 
 /**
@@ -48,6 +50,19 @@ public interface SessionMXBean {
 	public void addGlobalId(long globalId);
 	
 	/**
+	 * Remove the specified global id from this session
+	 * @param globalId the global id
+	 */
+	public void removeGlobalId(long globalId);
+	
+	
+	/**
+	 * Returns the session sub-keys
+	 * @return the session sub-keys
+	 */
+	public Map<String, String> getSessionKeys();
+	
+	/**
 	 * Returns an array of the session's pattern matched subscribed global ids
 	 * @return an array of global ids
 	 */
@@ -60,6 +75,13 @@ public interface SessionMXBean {
 	public String[] getPatterns();
 	
 	/**
+	 * Remove the pattern from this session
+	 * @param pattern the pattern to remove
+	 */
+	public void removePattern(String pattern);
+	
+	
+	/**
 	 * Subscribes this session to the specified pattern
 	 * @param pattern the pattern to subscribe to
 	 */
@@ -69,6 +91,11 @@ public interface SessionMXBean {
 	 * Terminates this session 
 	 */
 	public void terminateSession();
+	
+	/**
+	 * Touches the session, keeping it alive for a new expiration period
+	 */
+	public void touchSession();
 	
 	/**
 	 * Returns this session's time to live

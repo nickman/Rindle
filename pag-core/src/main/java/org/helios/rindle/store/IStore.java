@@ -24,6 +24,8 @@
  */
 package org.helios.rindle.store;
 
+import java.util.Map;
+
 import org.helios.rindle.RindleService;
 import org.helios.rindle.metric.IMetricDefinition;
 
@@ -185,7 +187,12 @@ public interface IStore extends RindleService {
 	 */
 	public long[] getCurrentSessions();
 	
-	
+	/**
+	 * Returns the session's sub-keys
+	 * @param sessionId the session Id
+	 * @return the session's sub-keys
+	 */
+	public Map<String, String> getSessionKeys(long sessionId);
 	
 	
 	
